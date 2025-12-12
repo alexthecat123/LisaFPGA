@@ -35,7 +35,7 @@ module IO_board(
     output logic _KBIR,
     output logic _IOIR,
     input logic E,
-    input logic _RESET,
+    input logic _RESET_SYSTEM,
     input logic CPUCK,
     input logic _LDMA,
     input logic _BGACK, // also not connected to anything
@@ -124,6 +124,15 @@ module IO_board(
     input logic IO_ROM_SEL // Selects whether the I/O board uses ROM revision A8 or 40
     );
 
+    // Before we do anything else, let's take the _SYSTEM_RESET signal and turn it into a _RESET signal for the I/O board
+    // _SYSTEM_RESET is in the DOTCK clock domain, but we need _RESET to be in the C16M clock domain
+    // So we'll use a two-stage synchronizer to avoid metastability issues
+    logic _RESET_int, _RESET;
+    always_ff @(posedge C16M) begin
+        _RESET_int <= _RESET_SYSTEM;
+        _RESET <= _RESET_int;
+    end
+
     // Okay, let's get Page 1 out of the way first; it's literally just:
     assign _BG0 = _BG; // This forwards all the bus grants through the I/O board to expansion cards
     // If the I/O board could take control of the bus (which it can't), it might need to do something more complex here
@@ -202,11 +211,19 @@ module IO_board(
     (*MARK_DEBUG = "TRUE" *) logic [7:0] ROM_out;
 
     // Now let's instantiate the I/O board ROM and hook it to the 6504
+    // We do this twice, once for the A8 ROM once for the 40 ROM, and use the IO_ROM_SEL signal to pick between them
     (* MARK_DEBUG = "TRUE" *) logic _IOROM_CE;
-    IOROM_2732 #(.ROM_file("IOROM_A8.mem")) IOROM(
+    IOROM_2732 #(.ROM_file("IOROM_A8.mem")) IOROM_A8(
         .A(MA[11:0]),
         ._OE(1'b0), // Always enabled
-        ._CE(_IOROM_CE),
+        ._CE(_IOROM_CE | IO_ROM_SEL), // Use A8 ROM when IO_ROM_SEL is low
+        .D(ROM_out)
+    );
+
+    IOROM_2732 #(.ROM_file("IOROM_40.mem")) IOROM_40(
+        .A(MA[11:0]),
+        ._OE(1'b0), // Always enabled
+        ._CE(_IOROM_CE | ~IO_ROM_SEL), // Use 40 ROM when IO_ROM_SEL is high
         .D(ROM_out)
     );
 

@@ -84,7 +84,7 @@ module mem_board_512k(
     output logic [20:1] A_SRAM,
     input logic [15:0] DIN_SRAM,
     output logic [15:0] DOUT_SRAM,
-    input logic [1:0] RAM_SEL
+    output logic SRAM_BUS_DIR
     );
 
     logic [15:0] MD;
@@ -240,8 +240,9 @@ module mem_board_512k(
 
     // We've encountered a hard memory error if we're in the middle of a read op (with this board selected) and the parity is invalid
     // We have to make an OE for HDER here since the CPU board can drive it too; it gets muxed with the CPU board in top.sv
-    assign _HDER_out = LBDSL_readop & invalid_parity_latched ? 1'b0 : 1'b1;
-    assign HDER_OE = LBDSL_readop & invalid_parity_latched;
+    // Prevemt HDER from ever being asserted if parity checking is disabled (for SDRAM operation)
+    assign _HDER_out = disable_parity ? 1'b1 : (LBDSL_readop & invalid_parity_latched ? 1'b0 : 1'b1);
+    assign HDER_OE = disable_parity ? 1'b0 : (LBDSL_readop & invalid_parity_latched);
     //assign _HDER_DAT = ~(~(LBDSL_readop & invalid_parity_latched));
     //assign HDER_OE = ~(LBDSL_readop & invalid_parity_latched);
 
@@ -271,7 +272,9 @@ module mem_board_512k(
     // If we're simulating, then we need to use block RAM
     // So instantiate two RAM matrices, each of which is 256K x 8 Bits worth of 4164s
     // One's the low byte of the RAM board, and the other's the high byte
+    logic disable_parity;
     `ifdef SIMULATION
+        assign disable_parity = 1'b0; // In simulation, we always want parity checking enabled since we're using 18-bit wide block RAMs
         RAM_matrix low_byte_matrix(
             .clk(DOTCK),
             .A(buffered_RA),
@@ -297,7 +300,8 @@ module mem_board_512k(
         );
     `else
         // Otherwise, instantiate the SDRAM controller to drive real SDRAM chips
-        SDRAM_Controller SDRAM_2MB(
+        assign disable_parity = 1'b1; // When using real SDRAM, we don't want parity checking since SDRAM doesn't support it
+        SDRAM_Controller_Banked SDRAM_2MB(
             .clk(DOTCK),
             .A(buffered_RA),
             .MD(MD),
@@ -315,7 +319,8 @@ module mem_board_512k(
             ._LDS_SRAM(_LDS_SRAM),
             .A_SRAM(A_SRAM),
             .DIN_SRAM(DIN_SRAM),
-            .DOUT_SRAM(DOUT_SRAM)
+            .DOUT_SRAM(DOUT_SRAM),
+            .SRAM_BUS_DIR(SRAM_BUS_DIR)
         );
     `endif
 

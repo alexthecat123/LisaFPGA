@@ -28,6 +28,15 @@ set_property DONT_TOUCH true [get_nets -hier -filter {MARK_DEBUG == 1}]
 set_property CONFIG_MODE SPIx4 [current_design]
 set_property BITSTREAM.CONFIG.SPI_BUSWIDTH 4 [current_design]
 
+## Make sure Vivado knows about synchronizers we have in the design to avoid timing issues
+## If we don't do this, Vivado will think we have timing violations on these paths, when in fact we don't
+## The literal purpose of these paths is to fix the timing violations caused by clock domain crossings!
+## False-path into the first stage of the HDMI reset synchronizer
+set_false_path -to [get_pins lisa_hdmi_output/_reset_hdmi_int_reg/D]
+## False-path into the first stage of the I/O board reset synchronizer
+set_false_path -to [get_pins io_board/_RESET_int_reg/D]
+
+
 ## The 125MHz sysclk signal
 ## ADD CREATE_CLOCKS FOR ALL THE OTHER CLOCK SIGNALS TOO!!!!
 create_clock -period 8.000 -name sys_clk_pin -waveform {0.000 4.000} -add [get_ports sysclk]
@@ -97,7 +106,10 @@ set_property -dict {PACKAGE_PIN N4 IOSTANDARD LVCMOS33} [get_ports {D_SRAM[7]}]
 set_property -dict {PACKAGE_PIN R1 IOSTANDARD LVCMOS33} [get_ports {D_SRAM[8]}]
 set_property -dict {PACKAGE_PIN T1 IOSTANDARD LVCMOS33} [get_ports {D_SRAM[9]}]
 set_property -dict {PACKAGE_PIN M6 IOSTANDARD LVCMOS33} [get_ports {D_SRAM[10]}]
+# Normal SRAM Pin
 set_property -dict {PACKAGE_PIN N6 IOSTANDARD LVCMOS33} [get_ports {D_SRAM[11]}]
+# GPIO SRAM Pin
+#set_property -dict {PACKAGE_PIN E2 IOSTANDARD LVCMOS33} [get_ports {D_SRAM[11]}]
 set_property -dict {PACKAGE_PIN R6 IOSTANDARD LVCMOS33} [get_ports {D_SRAM[12]}]
 set_property -dict {PACKAGE_PIN R5 IOSTANDARD LVCMOS33} [get_ports {D_SRAM[13]}]
 set_property -dict {PACKAGE_PIN V7 IOSTANDARD LVCMOS33} [get_ports {D_SRAM[14]}]
@@ -202,12 +214,12 @@ set_property -dict {PACKAGE_PIN R8 IOSTANDARD LVCMOS33} [get_ports {M_LISA[6]}]
 set_property -dict {PACKAGE_PIN C12 IOSTANDARD LVCMOS33} [get_ports MOUSE_SEL]
 
 ## GPIO Pins
-set_property -dict {PACKAGE_PIN E2 IOSTANDARD LVCMOS33} [get_ports {GPIO[0]}]
-set_property -dict {PACKAGE_PIN F3 IOSTANDARD LVCMOS33} [get_ports {GPIO[1]}]
-set_property -dict {PACKAGE_PIN F4 IOSTANDARD LVCMOS33} [get_ports {GPIO[2]}]
-set_property -dict {PACKAGE_PIN D3 IOSTANDARD LVCMOS33} [get_ports {GPIO[3]}]
-set_property -dict {PACKAGE_PIN E3 IOSTANDARD LVCMOS33} [get_ports {GPIO[4]}]
-set_property -dict {PACKAGE_PIN D4 IOSTANDARD LVCMOS33} [get_ports {GPIO[5]}]
+#set_property -dict {PACKAGE_PIN E2 IOSTANDARD LVCMOS33} [get_ports {GPIO[0]}]
+#set_property -dict {PACKAGE_PIN F3 IOSTANDARD LVCMOS33} [get_ports {GPIO[1]}]
+#set_property -dict {PACKAGE_PIN F4 IOSTANDARD LVCMOS33} [get_ports {GPIO[2]}]
+#set_property -dict {PACKAGE_PIN D3 IOSTANDARD LVCMOS33} [get_ports {GPIO[3]}]
+#set_property -dict {PACKAGE_PIN E3 IOSTANDARD LVCMOS33} [get_ports {GPIO[4]}]
+#set_property -dict {PACKAGE_PIN D4 IOSTANDARD LVCMOS33} [get_ports {GPIO[5]}]
 
 ## Comms With External SCC
 set_property -dict {PACKAGE_PIN B2 IOSTANDARD LVCMOS33} [get_ports SCC_C4M]
@@ -277,6 +289,28 @@ set_property -dict {PACKAGE_PIN F5 IOSTANDARD LVCMOS33} [get_ports IO_ROM_SEL]
 
 
 
+connect_debug_port u_ila_0/probe39 [get_nets [list slot1/SDRAM_2MB/R_W_int]]
+
+
+
+
+connect_debug_port u_ila_0/probe12 [get_nets [list {slot1/SDRAM_2MB/state[0]} {slot1/SDRAM_2MB/state[1]} {slot1/SDRAM_2MB/state[2]}]]
+connect_debug_port u_ila_0/probe14 [get_nets [list {slot1/SDRAM_2MB/next_state[0]} {slot1/SDRAM_2MB/next_state[1]} {slot1/SDRAM_2MB/next_state[2]}]]
+connect_debug_port u_ila_0/probe34 [get_nets [list slot1/SDRAM_2MB/bus_drive]]
+connect_debug_port u_ila_0/probe35 [get_nets [list slot1/SDRAM_2MB/cas_falling_edge]]
+connect_debug_port u_ila_0/probe41 [get_nets [list slot1/SDRAM_2MB/oe_int]]
+connect_debug_port u_ila_0/probe42 [get_nets [list slot1/SDRAM_2MB/R_W]]
+connect_debug_port u_ila_0/probe47 [get_nets [list slot1/SDRAM_2MB/we_int]]
+
+
+
+
+connect_debug_port u_ila_0/probe8 [get_nets [list {SPEED_SEL_IBUF[0]}]]
+connect_debug_port dbg_hub/clk [get_nets dotck_20M]
+
+
+
+
 create_debug_core u_ila_0 ila
 set_property ALL_PROBE_SAME_MU true [get_debug_cores u_ila_0]
 set_property ALL_PROBE_SAME_MU_CNT 1 [get_debug_cores u_ila_0]
@@ -289,24 +323,144 @@ set_property C_TRIGOUT_EN false [get_debug_cores u_ila_0]
 set_property port_width 1 [get_debug_ports u_ila_0/clk]
 connect_debug_port u_ila_0/clk [get_nets [list clkdiv_125mhz_to_20mhz/inst/lisa_dotck]]
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe0]
-set_property port_width 16 [get_debug_ports u_ila_0/probe0]
-connect_debug_port u_ila_0/probe0 [get_nets [list {cpu_board/UD_CPU_in[0]} {cpu_board/UD_CPU_in[1]} {cpu_board/UD_CPU_in[2]} {cpu_board/UD_CPU_in[3]} {cpu_board/UD_CPU_in[4]} {cpu_board/UD_CPU_in[5]} {cpu_board/UD_CPU_in[6]} {cpu_board/UD_CPU_in[7]} {cpu_board/UD_CPU_in[8]} {cpu_board/UD_CPU_in[9]} {cpu_board/UD_CPU_in[10]} {cpu_board/UD_CPU_in[11]} {cpu_board/UD_CPU_in[12]} {cpu_board/UD_CPU_in[13]} {cpu_board/UD_CPU_in[14]} {cpu_board/UD_CPU_in[15]}]]
+set_property port_width 6 [get_debug_ports u_ila_0/probe0]
+connect_debug_port u_ila_0/probe0 [get_nets [list {CONT_OBUF[0]} {CONT_OBUF[1]} {CONT_OBUF[2]} {CONT_OBUF[3]} {CONT_OBUF[4]} {CONT_OBUF[5]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe1]
-set_property port_width 23 [get_debug_ports u_ila_0/probe1]
-connect_debug_port u_ila_0/probe1 [get_nets [list {cpu_board/UA_CPU[1]} {cpu_board/UA_CPU[2]} {cpu_board/UA_CPU[3]} {cpu_board/UA_CPU[4]} {cpu_board/UA_CPU[5]} {cpu_board/UA_CPU[6]} {cpu_board/UA_CPU[7]} {cpu_board/UA_CPU[8]} {cpu_board/UA_CPU[9]} {cpu_board/UA_CPU[10]} {cpu_board/UA_CPU[11]} {cpu_board/UA_CPU[12]} {cpu_board/UA_CPU[13]} {cpu_board/UA_CPU[14]} {cpu_board/UA_CPU[15]} {cpu_board/UA_CPU[16]} {cpu_board/UA_CPU[17]} {cpu_board/UA_CPU[18]} {cpu_board/UA_CPU[19]} {cpu_board/UA_CPU[20]} {cpu_board/UA_CPU[21]} {cpu_board/UA_CPU[22]} {cpu_board/UA_CPU[23]}]]
+set_property port_width 16 [get_debug_ports u_ila_0/probe1]
+connect_debug_port u_ila_0/probe1 [get_nets [list {MD_IN[0]} {MD_IN[1]} {MD_IN[2]} {MD_IN[3]} {MD_IN[4]} {MD_IN[5]} {MD_IN[6]} {MD_IN[7]} {MD_IN[8]} {MD_IN[9]} {MD_IN[10]} {MD_IN[11]} {MD_IN[12]} {MD_IN[13]} {MD_IN[14]} {MD_IN[15]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe2]
 set_property port_width 16 [get_debug_ports u_ila_0/probe2]
-connect_debug_port u_ila_0/probe2 [get_nets [list {cpu_board/UD_CPU_out[0]} {cpu_board/UD_CPU_out[1]} {cpu_board/UD_CPU_out[2]} {cpu_board/UD_CPU_out[3]} {cpu_board/UD_CPU_out[4]} {cpu_board/UD_CPU_out[5]} {cpu_board/UD_CPU_out[6]} {cpu_board/UD_CPU_out[7]} {cpu_board/UD_CPU_out[8]} {cpu_board/UD_CPU_out[9]} {cpu_board/UD_CPU_out[10]} {cpu_board/UD_CPU_out[11]} {cpu_board/UD_CPU_out[12]} {cpu_board/UD_CPU_out[13]} {cpu_board/UD_CPU_out[14]} {cpu_board/UD_CPU_out[15]}]]
+connect_debug_port u_ila_0/probe2 [get_nets [list {MD_OUT[0]} {MD_OUT[1]} {MD_OUT[2]} {MD_OUT[3]} {MD_OUT[4]} {MD_OUT[5]} {MD_OUT[6]} {MD_OUT[7]} {MD_OUT[8]} {MD_OUT[9]} {MD_OUT[10]} {MD_OUT[11]} {MD_OUT[12]} {MD_OUT[13]} {MD_OUT[14]} {MD_OUT[15]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe3]
-set_property port_width 1 [get_debug_ports u_ila_0/probe3]
-connect_debug_port u_ila_0/probe3 [get_nets [list cpu_board/_RSTHLT_555]]
+set_property port_width 3 [get_debug_ports u_ila_0/probe3]
+connect_debug_port u_ila_0/probe3 [get_nets [list {VC_OBUF[0]} {VC_OBUF[1]} {VC_OBUF[2]}]]
 create_debug_port u_ila_0 probe
 set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe4]
-set_property port_width 1 [get_debug_ports u_ila_0/probe4]
-connect_debug_port u_ila_0/probe4 [get_nets [list io_board/TONE]]
+set_property port_width 23 [get_debug_ports u_ila_0/probe4]
+connect_debug_port u_ila_0/probe4 [get_nets [list {cpu_board/UA_CPU[1]} {cpu_board/UA_CPU[2]} {cpu_board/UA_CPU[3]} {cpu_board/UA_CPU[4]} {cpu_board/UA_CPU[5]} {cpu_board/UA_CPU[6]} {cpu_board/UA_CPU[7]} {cpu_board/UA_CPU[8]} {cpu_board/UA_CPU[9]} {cpu_board/UA_CPU[10]} {cpu_board/UA_CPU[11]} {cpu_board/UA_CPU[12]} {cpu_board/UA_CPU[13]} {cpu_board/UA_CPU[14]} {cpu_board/UA_CPU[15]} {cpu_board/UA_CPU[16]} {cpu_board/UA_CPU[17]} {cpu_board/UA_CPU[18]} {cpu_board/UA_CPU[19]} {cpu_board/UA_CPU[20]} {cpu_board/UA_CPU[21]} {cpu_board/UA_CPU[22]} {cpu_board/UA_CPU[23]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe5]
+set_property port_width 16 [get_debug_ports u_ila_0/probe5]
+connect_debug_port u_ila_0/probe5 [get_nets [list {cpu_board/UD_CPU_in[0]} {cpu_board/UD_CPU_in[1]} {cpu_board/UD_CPU_in[2]} {cpu_board/UD_CPU_in[3]} {cpu_board/UD_CPU_in[4]} {cpu_board/UD_CPU_in[5]} {cpu_board/UD_CPU_in[6]} {cpu_board/UD_CPU_in[7]} {cpu_board/UD_CPU_in[8]} {cpu_board/UD_CPU_in[9]} {cpu_board/UD_CPU_in[10]} {cpu_board/UD_CPU_in[11]} {cpu_board/UD_CPU_in[12]} {cpu_board/UD_CPU_in[13]} {cpu_board/UD_CPU_in[14]} {cpu_board/UD_CPU_in[15]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe6]
+set_property port_width 16 [get_debug_ports u_ila_0/probe6]
+connect_debug_port u_ila_0/probe6 [get_nets [list {cpu_board/UD_CPU_out[0]} {cpu_board/UD_CPU_out[1]} {cpu_board/UD_CPU_out[2]} {cpu_board/UD_CPU_out[3]} {cpu_board/UD_CPU_out[4]} {cpu_board/UD_CPU_out[5]} {cpu_board/UD_CPU_out[6]} {cpu_board/UD_CPU_out[7]} {cpu_board/UD_CPU_out[8]} {cpu_board/UD_CPU_out[9]} {cpu_board/UD_CPU_out[10]} {cpu_board/UD_CPU_out[11]} {cpu_board/UD_CPU_out[12]} {cpu_board/UD_CPU_out[13]} {cpu_board/UD_CPU_out[14]} {cpu_board/UD_CPU_out[15]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe7]
+set_property port_width 16 [get_debug_ports u_ila_0/probe7]
+connect_debug_port u_ila_0/probe7 [get_nets [list {cpu_board/vid_addr_counter[0]} {cpu_board/vid_addr_counter[1]} {cpu_board/vid_addr_counter[2]} {cpu_board/vid_addr_counter[3]} {cpu_board/vid_addr_counter[4]} {cpu_board/vid_addr_counter[5]} {cpu_board/vid_addr_counter[6]} {cpu_board/vid_addr_counter[7]} {cpu_board/vid_addr_counter[8]} {cpu_board/vid_addr_counter[9]} {cpu_board/vid_addr_counter[10]} {cpu_board/vid_addr_counter[11]} {cpu_board/vid_addr_counter[12]} {cpu_board/vid_addr_counter[13]} {cpu_board/vid_addr_counter[14]} {cpu_board/vid_addr_counter[15]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe8]
+set_property port_width 16 [get_debug_ports u_ila_0/probe8]
+connect_debug_port u_ila_0/probe8 [get_nets [list {cpu_board/vid_shift_reg[0]} {cpu_board/vid_shift_reg[1]} {cpu_board/vid_shift_reg[2]} {cpu_board/vid_shift_reg[3]} {cpu_board/vid_shift_reg[4]} {cpu_board/vid_shift_reg[5]} {cpu_board/vid_shift_reg[6]} {cpu_board/vid_shift_reg[7]} {cpu_board/vid_shift_reg[8]} {cpu_board/vid_shift_reg[9]} {cpu_board/vid_shift_reg[10]} {cpu_board/vid_shift_reg[11]} {cpu_board/vid_shift_reg[12]} {cpu_board/vid_shift_reg[13]} {cpu_board/vid_shift_reg[14]} {cpu_board/vid_shift_reg[15]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe9]
+set_property port_width 3 [get_debug_ports u_ila_0/probe9]
+connect_debug_port u_ila_0/probe9 [get_nets [list {lisa_hdmi_output/bit_counter[0]} {lisa_hdmi_output/bit_counter[1]} {lisa_hdmi_output/bit_counter[2]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe10]
+set_property port_width 3 [get_debug_ports u_ila_0/probe10]
+connect_debug_port u_ila_0/probe10 [get_nets [list {lisa_hdmi_output/bit_index[0]} {lisa_hdmi_output/bit_index[1]} {lisa_hdmi_output/bit_index[2]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe11]
+set_property port_width 16 [get_debug_ports u_ila_0/probe11]
+connect_debug_port u_ila_0/probe11 [get_nets [list {lisa_hdmi_output/byte_counter[0]} {lisa_hdmi_output/byte_counter[1]} {lisa_hdmi_output/byte_counter[2]} {lisa_hdmi_output/byte_counter[3]} {lisa_hdmi_output/byte_counter[4]} {lisa_hdmi_output/byte_counter[5]} {lisa_hdmi_output/byte_counter[6]} {lisa_hdmi_output/byte_counter[7]} {lisa_hdmi_output/byte_counter[8]} {lisa_hdmi_output/byte_counter[9]} {lisa_hdmi_output/byte_counter[10]} {lisa_hdmi_output/byte_counter[11]} {lisa_hdmi_output/byte_counter[12]} {lisa_hdmi_output/byte_counter[13]} {lisa_hdmi_output/byte_counter[14]} {lisa_hdmi_output/byte_counter[15]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe12]
+set_property port_width 12 [get_debug_ports u_ila_0/probe12]
+connect_debug_port u_ila_0/probe12 [get_nets [list {lisa_hdmi_output/cx[0]} {lisa_hdmi_output/cx[1]} {lisa_hdmi_output/cx[2]} {lisa_hdmi_output/cx[3]} {lisa_hdmi_output/cx[4]} {lisa_hdmi_output/cx[5]} {lisa_hdmi_output/cx[6]} {lisa_hdmi_output/cx[7]} {lisa_hdmi_output/cx[8]} {lisa_hdmi_output/cx[9]} {lisa_hdmi_output/cx[10]} {lisa_hdmi_output/cx[11]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe13]
+set_property port_width 11 [get_debug_ports u_ila_0/probe13]
+connect_debug_port u_ila_0/probe13 [get_nets [list {lisa_hdmi_output/cy[0]} {lisa_hdmi_output/cy[1]} {lisa_hdmi_output/cy[2]} {lisa_hdmi_output/cy[3]} {lisa_hdmi_output/cy[4]} {lisa_hdmi_output/cy[5]} {lisa_hdmi_output/cy[6]} {lisa_hdmi_output/cy[7]} {lisa_hdmi_output/cy[8]} {lisa_hdmi_output/cy[9]} {lisa_hdmi_output/cy[10]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe14]
+set_property port_width 4 [get_debug_ports u_ila_0/probe14]
+connect_debug_port u_ila_0/probe14 [get_nets [list {lisa_hdmi_output/end_line_overlap_counter[0]} {lisa_hdmi_output/end_line_overlap_counter[1]} {lisa_hdmi_output/end_line_overlap_counter[2]} {lisa_hdmi_output/end_line_overlap_counter[3]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe15]
+set_property port_width 2 [get_debug_ports u_ila_0/probe15]
+connect_debug_port u_ila_0/probe15 [get_nets [list {lisa_hdmi_output/hsync_delay_counter[0]} {lisa_hdmi_output/hsync_delay_counter[1]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe16]
+set_property port_width 10 [get_debug_ports u_ila_0/probe16]
+connect_debug_port u_ila_0/probe16 [get_nets [list {lisa_hdmi_output/lisa_x[0]} {lisa_hdmi_output/lisa_x[1]} {lisa_hdmi_output/lisa_x[2]} {lisa_hdmi_output/lisa_x[3]} {lisa_hdmi_output/lisa_x[4]} {lisa_hdmi_output/lisa_x[5]} {lisa_hdmi_output/lisa_x[6]} {lisa_hdmi_output/lisa_x[7]} {lisa_hdmi_output/lisa_x[8]} {lisa_hdmi_output/lisa_x[9]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe17]
+set_property port_width 10 [get_debug_ports u_ila_0/probe17]
+connect_debug_port u_ila_0/probe17 [get_nets [list {lisa_hdmi_output/lisa_y[0]} {lisa_hdmi_output/lisa_y[1]} {lisa_hdmi_output/lisa_y[2]} {lisa_hdmi_output/lisa_y[3]} {lisa_hdmi_output/lisa_y[4]} {lisa_hdmi_output/lisa_y[5]} {lisa_hdmi_output/lisa_y[6]} {lisa_hdmi_output/lisa_y[7]} {lisa_hdmi_output/lisa_y[8]} {lisa_hdmi_output/lisa_y[9]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe18]
+set_property port_width 4 [get_debug_ports u_ila_0/probe18]
+connect_debug_port u_ila_0/probe18 [get_nets [list {lisa_hdmi_output/start_line_overlap_counter[0]} {lisa_hdmi_output/start_line_overlap_counter[1]} {lisa_hdmi_output/start_line_overlap_counter[2]} {lisa_hdmi_output/start_line_overlap_counter[3]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe19]
+set_property port_width 16 [get_debug_ports u_ila_0/probe19]
+connect_debug_port u_ila_0/probe19 [get_nets [list {lisa_hdmi_output/word_index[0]} {lisa_hdmi_output/word_index[1]} {lisa_hdmi_output/word_index[2]} {lisa_hdmi_output/word_index[3]} {lisa_hdmi_output/word_index[4]} {lisa_hdmi_output/word_index[5]} {lisa_hdmi_output/word_index[6]} {lisa_hdmi_output/word_index[7]} {lisa_hdmi_output/word_index[8]} {lisa_hdmi_output/word_index[9]} {lisa_hdmi_output/word_index[10]} {lisa_hdmi_output/word_index[11]} {lisa_hdmi_output/word_index[12]} {lisa_hdmi_output/word_index[13]} {lisa_hdmi_output/word_index[14]} {lisa_hdmi_output/word_index[15]}]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe20]
+set_property port_width 1 [get_debug_ports u_ila_0/probe20]
+connect_debug_port u_ila_0/probe20 [get_nets [list _AS]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe21]
+set_property port_width 1 [get_debug_ports u_ila_0/probe21]
+connect_debug_port u_ila_0/probe21 [get_nets [list _clr_vid_clk]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe22]
+set_property port_width 1 [get_debug_ports u_ila_0/probe22]
+connect_debug_port u_ila_0/probe22 [get_nets [list _HSYNC_OBUF]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe23]
+set_property port_width 1 [get_debug_ports u_ila_0/probe23]
+connect_debug_port u_ila_0/probe23 [get_nets [list cpu_board/_RSTHLT_555]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe24]
+set_property port_width 1 [get_debug_ports u_ila_0/probe24]
+connect_debug_port u_ila_0/probe24 [get_nets [list _VSYNC_OBUF]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe25]
+set_property port_width 1 [get_debug_ports u_ila_0/probe25]
+connect_debug_port u_ila_0/probe25 [get_nets [list CPU_ROM_SEL_IBUF]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe26]
+set_property port_width 1 [get_debug_ports u_ila_0/probe26]
+connect_debug_port u_ila_0/probe26 [get_nets [list READ]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe27]
+set_property port_width 1 [get_debug_ports u_ila_0/probe27]
+connect_debug_port u_ila_0/probe27 [get_nets [list VA_overflow]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe28]
+set_property port_width 1 [get_debug_ports u_ila_0/probe28]
+connect_debug_port u_ila_0/probe28 [get_nets [list cpu_board/vid_addr_clk]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe29]
+set_property port_width 1 [get_debug_ports u_ila_0/probe29]
+connect_debug_port u_ila_0/probe29 [get_nets [list cpu_board/vid_addr_clr]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe30]
+set_property port_width 1 [get_debug_ports u_ila_0/probe30]
+connect_debug_port u_ila_0/probe30 [get_nets [list VID_int]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe31]
+set_property port_width 1 [get_debug_ports u_ila_0/probe31]
+connect_debug_port u_ila_0/probe31 [get_nets [list cpu_board/vid_shift_out]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe32]
+set_property port_width 1 [get_debug_ports u_ila_0/probe32]
+connect_debug_port u_ila_0/probe32 [get_nets [list cpu_board/vid_shift_out_ff]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe33]
+set_property port_width 1 [get_debug_ports u_ila_0/probe33]
+connect_debug_port u_ila_0/probe33 [get_nets [list cpu_board/VIDEO]]
+create_debug_port u_ila_0 probe
+set_property PROBE_TYPE DATA_AND_TRIGGER [get_debug_ports u_ila_0/probe34]
+set_property port_width 1 [get_debug_ports u_ila_0/probe34]
+connect_debug_port u_ila_0/probe34 [get_nets [list io_board/WCNT]]
 set_property C_CLK_INPUT_FREQ_HZ 300000000 [get_debug_cores dbg_hub]
 set_property C_ENABLE_CLK_DIVIDER false [get_debug_cores dbg_hub]
 set_property C_USER_SCAN_CHAIN 1 [get_debug_cores dbg_hub]

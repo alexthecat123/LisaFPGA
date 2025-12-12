@@ -113,7 +113,7 @@ module top(
 
         input logic MOUSE_SEL,
 
-        output logic [5:0] GPIO,
+        //output logic [5:0] GPIO,
 
         output logic SCC_C4M,
         output logic SCC_WR,
@@ -148,49 +148,15 @@ module top(
         output logic _RESET,
         input logic _NMISW,
 
-        input logic [1:0] SPEED_SEL,
-        input logic CPU_ROM_SEL,
-        input logic IO_ROM_SEL
-
-        /*input logic sysclk,
-        input logic [3:0] btn,
-        output logic [3:0] led,
-        output logic [4:0] ar,
-        (* PULLTYPE = "PULLUP" *) inout logic ar5,
-        output logic ar6,
-        output logic ar7,
-        output logic ar8,
-        output logic ar9,
-        output logic ar10,
-        output logic ar11,
-        output logic ar12,
-        output logic ar13,
-        output logic a0,
-        input logic rpio_02_r,
-        input logic rpio_03_r,
-        (* PULLTYPE = "PULLUP" *) input logic rpio_04_r,
-        input logic rpio_05_r,
-        input logic rpio_06_r,
-        inout logic [7:0] jb,
-        output logic rpio_15_r,
-        (* PULLTYPE = "PULLUP" *) input logic rpio_16_r,
-        output logic rpio_17_r,
-        output logic rpio_18_r,
-        input logic rpio_19_r,
-        (* PULLTYPE = "PULLUP" *) inout logic rpio_20_r,
-        (* PULLTYPE = "PULLUP" *) input logic rpio_21_r,
-        (* PULLTYPE = "PULLUP" *) input logic rpio_22_r,
-        input logic rpio_24_r,
-        output logic hdmi_tx_clk_n,
-        output logic hdmi_tx_clk_p,
-        output logic [2:0] hdmi_tx_d_n,
-        output logic [2:0] hdmi_tx_d_p*/
+        (* MARK_DEBUG = "TRUE" *) input logic [1:0] SPEED_SEL,
+        (* MARK_DEBUG = "TRUE" *) input logic CPU_ROM_SEL,
+        (* MARK_DEBUG = "TRUE" *) input logic IO_ROM_SEL
     );
 
     // The internal Verilog SCC isn't working yet, so disable the transceivers that hook it to the serial bus
     assign INTERNAL_SCC_EN = 1'b0;
     // Stick something random on the GPIO pins for now
-    assign GPIO = {_VSYNC, _HSYNC, VID, TONE, LEFT_ESFLOPPY, OK_ESFLOPPY};
+    //assign GPIO = {_VSYNC, _HSYNC, VID, TONE, LEFT_ESFLOPPY, OK_ESFLOPPY};
 
     logic _SL0;
     logic _SH0;
@@ -301,17 +267,114 @@ module top(
     logic C5M_ungated;
     logic C5M;
 
+    // We can switch between 4 different speed settings for the Lisa dot clock using the speed select inputs
+    logic dotck_20M;
+    logic dotck_40M;
+    logic dotck_60M;
+    logic dotck_80M;
+
     // We use an MMCM for this, but there's a catch
     // It can't generate either COPCK or SCCCK directly because the frequencies are too low
     // So instead, we generate 2x the frequency of each and divide it by 2 with flip-flops
     clock_divider clkdiv_125mhz_to_20mhz (
-        .lisa_dotck(lisa_dotck_ungated),
+        .lisa_dotck(lisa_dotck_ungated), // dotck_20M
         .sysclk(sysclk_ibuf),
         .C16M(C16M_ungated),
         .COPCK_2x(COPCK_2x),
         .SCCCK_2x(SCCCK_2x),
         .C5M(C5M_ungated)
     );
+/*
+    // This second MMCM generates the alternate non-standard dotck frequencies we can select from
+    alt_dotck_generator clkdiv_alt_dotck (
+        .sysclk(sysclk_ibuf),
+        .dotck_40M(dotck_40M),
+        .dotck_60M(dotck_60M),
+        .dotck_80M(dotck_80M)
+    );
+
+    // Now we need to read the speed select inputs and pick which dot clock to use
+    // We must use special BUFGCTRL primitives here that are designed for clock muxing; clocks can't be routed through regular muxes
+    (*MARK_DEBUG = "TRUE"*) logic sel_20_or_40;
+    (*MARK_DEBUG = "TRUE"*) logic sel_20_or_40_n;
+    (*MARK_DEBUG = "TRUE"*) logic sel_60_or_80;
+    (*MARK_DEBUG = "TRUE"*) logic sel_60_or_80_n;
+    (*MARK_DEBUG = "TRUE"*) logic sel_A_or_B;
+    (*MARK_DEBUG = "TRUE"*) logic sel_A_or_B_n;
+    // First stage selection (20M vs 40M)
+    assign sel_20_or_40    = (SPEED_SEL == 2'b00);
+    assign sel_20_or_40_n  = (SPEED_SEL == 2'b01);
+
+    // Second stage selection (60M vs 80M)
+    assign sel_60_or_80    = (SPEED_SEL == 2'b10);
+    assign sel_60_or_80_n  = (SPEED_SEL == 2'b11);
+
+    // Final stage selection (A={20M,40M} vs B={60M,80M})
+    assign sel_A_or_B      = (SPEED_SEL[1] == 1'b0); // A = slow group
+    assign sel_A_or_B_n    = (SPEED_SEL[1] == 1'b1); // B = fast group
+
+    //------------------------------------------------------------
+    // First stage: select between 20M and 40M
+    //------------------------------------------------------------
+    wire dotck_A;
+
+    BUFGCTRL #(
+        .INIT_OUT(0),        // Start low
+        .PRESELECT_I0("FALSE"),
+        .PRESELECT_I1("FALSE")
+    ) bufgctrl_A (
+        .I0(dotck_20M),      // Clock 0
+        .I1(dotck_40M),      // Clock 1
+        .S0(sel_20_or_40),   // 1 = I0 enabled
+        .S1(sel_20_or_40_n), // 1 = I1 enabled
+        .CE0(1'b1),
+        .CE1(1'b1),
+        .IGNORE0(1'b0),
+        .IGNORE1(1'b0),
+        .O(dotck_A)
+    );
+
+    //------------------------------------------------------------
+    // Second stage: select between 60M and 80M
+    //------------------------------------------------------------
+    wire dotck_B;
+
+    BUFGCTRL #(
+        .INIT_OUT(0),
+        .PRESELECT_I0("FALSE"),
+        .PRESELECT_I1("FALSE")
+    ) bufgctrl_B (
+        .I0(dotck_60M),
+        .I1(dotck_80M),
+        .S0(sel_60_or_80),     // 1 = I0 enabled
+        .S1(sel_60_or_80_n),   // 1 = I1 enabled
+        .CE0(1'b1),
+        .CE1(1'b1),
+        .IGNORE0(1'b0),
+        .IGNORE1(1'b0),
+        .O(dotck_B)
+    );
+
+    //------------------------------------------------------------
+    // Final stage: select between {20/40} and {60/80}
+    //------------------------------------------------------------
+    BUFGCTRL #(
+        .INIT_OUT(0),
+        .PRESELECT_I0("FALSE"),
+        .PRESELECT_I1("FALSE")
+    ) bufgctrl_final (
+        .I0(dotck_A),
+        .I1(dotck_B),
+        .S0(sel_A_or_B),       // 1 = I0 enabled
+        .S1(sel_A_or_B_n),     // 1 = I1 enabled
+        .CE0(1'b1),
+        .CE1(1'b1),
+        .IGNORE0(1'b0),
+        .IGNORE1(1'b0),
+        .O(lisa_dotck_ungated)
+    );*/
+
+
 
     //assign COPCK = rpio_24_r;
     // Here's that division by 2
@@ -358,7 +421,7 @@ module top(
     logic ON_prev;
     logic ON_rising;
 
-    always_ff @(posedge sysclk_ibuf) begin
+    always_ff @(posedge COPCK) begin
         ON_prev <= ON;
     end
 
@@ -387,7 +450,7 @@ module top(
     logic VA_overflow;
     logic _clr_vid_clk;
 
-    `ifndef SIMULATION
+    //`ifndef SIMULATION
         HDMI_Interface lisa_hdmi_output(
             .sysclk(sysclk_ibuf),
             ._reset(_RESET),
@@ -396,13 +459,13 @@ module top(
             ._clr_vid_clk(_clr_vid_clk), // Replaces _HSYNC; better reflects the HSYNC time which is actually shorter than _HSYNC
             .VID(VID_int),
             .CONT(CONT),
-            .INVID(INVID),
             .TONE(TONE),
             .VC(VC),
+            .CPU_ROM_SEL(CPU_ROM_SEL),
             .tmds_clock(tmds_clock),
             .tmds(tmds)
         );
-    `endif
+    //`endif
 
     genvar i;
     generate
@@ -542,7 +605,8 @@ module top(
     );
     // And now the USB one
 
-/*
+
+
     // Now we have to mux between the two, depending on the KBD_SEL signal
     always_comb begin
         // If it's high, then use the USB keyboard
@@ -555,20 +619,6 @@ module top(
             KBD_in = KBD_in_LISA;
             KBD_out_LISA = KBD_out;
             KBD_out_USB = 1'b1; // Make sure the USB keyboard interface is inactive
-        end
-    end
-*/
-
-    // Now we have to mux between the two, depending on the KBD_SEL signal
-    always_comb begin
-        // If it's high, then use the USB keyboard
-        if (KBD_SEL) begin
-            KBD_in = KBD_in_USB;
-            //KBD_out = KBD_out_USB;
-        // And if it's low, use the Lisa keyboard interface
-        end else begin
-            KBD_in = KBD_in_LISA;
-            //KBD_out = KBD_out_LISA;
         end
     end
 
@@ -875,7 +925,7 @@ module top(
         ._KBIR(_KBIR),
         ._IOIR(_IOIR),
         .E(E),
-        ._RESET(_RESET),
+        ._RESET_SYSTEM(_RESET),
         .CPUCK(CPUCK),
         ._LDMA(_LDMA),
         ._BGACK(_BGACK),
@@ -978,6 +1028,7 @@ module top(
 
     logic [15:0] DIN_SRAM;
     logic [15:0] DOUT_SRAM;
+    logic SRAM_BUS_DIR;
     `ifndef SIMULATION
         // The external SRAM chip has a bidirectional data bus, so we need IOBUFs for it
         generate
@@ -989,54 +1040,91 @@ module top(
                     .IO(D_SRAM[i]),
                     // And the data to send to the RAM is DOUT_SRAM[i]
                     .I(DOUT_SRAM[i]),
-                    // Only output data when _WE_SRAM is low (write enable active)
+                    // Only output data when SRAM_BUS_DIR is low (RAM controller is writing to RAM)
                     // Otherwise we should be reading input from the RAM
-                    .T(_WE_SRAM)
+                    .T(SRAM_BUS_DIR)
                 );
             end
         endgenerate
     `endif
 
-    mem_board_512k slot1(
-        .RA(RA),
-        .A17(A17),
-        .A18(A18),
-        .A19(A19),
-        .A20(A20),
-        .VA9(VA9B),
-        .VA10(VA10B),
-        .DOTCK(DOTCK),
-        ._UDS(_UDS),
-        ._LDS(_LDS),
-        ._CAS(_CAS),
-        ._RAS(_RAS),
-        .MREAD(MREAD),
-        .SLOT(1'b1),
-        ._RFSH(_R1),
-        .T1(T1),
-        .T2(T2),
-        .T3(T3),
-        .A16(A16),
-        .S1(1'b0),
-        .S2(1'b0),
-        .S3(1'b0),
-        .MD_IN(MD_OUT),
-        .MD_OUT(MD_IN),
-        ._HDER_in(_HDER),
-        ._HDER_out(_HDER_MEM),
-        .HDER_OE(HDER_OE_MEM),
-        ._SFER_in(_SFER),
-        ._SFER_out(_SFER_MEM),
-        .SFER_OE(SFER_OE_MEM),
-        ._CE_SRAM(_CE_SRAM),
-        ._OE_SRAM(_OE_SRAM),
-        ._WE_SRAM(_WE_SRAM),
-        ._UDS_SRAM(_UDS_SRAM),
-        ._LDS_SRAM(_LDS_SRAM),
-        .A_SRAM(A_SRAM),
-        .DIN_SRAM(DIN_SRAM),
-        .DOUT_SRAM(DOUT_SRAM),
-        .RAM_SEL(RAM_SEL)
-    );
+    `ifdef SIMULATION
+        // If we're simulating, just instantiate a single 512KB memory board; it's the only one that supports block RAM
+        mem_board_512k slot1(
+            .RA(RA),
+            .A17(A17),
+            .A18(A18),
+            .A19(A19),
+            .A20(A20),
+            .VA9(VA9B),
+            .VA10(VA10B),
+            .DOTCK(DOTCK),
+            ._UDS(_UDS),
+            ._LDS(_LDS),
+            ._CAS(_CAS),
+            ._RAS(_RAS),
+            .MREAD(MREAD),
+            .SLOT(1'b1),
+            ._RFSH(_R1),
+            .T1(T1),
+            .T2(T2),
+            .T3(T3),
+            .A16(A16),
+            .S1(1'b0),
+            .S2(1'b0),
+            .S3(1'b0),
+            .MD_IN(MD_OUT),
+            .MD_OUT(MD_IN),
+            ._HDER_in(_HDER),
+            ._HDER_out(_HDER_MEM),
+            .HDER_OE(HDER_OE_MEM),
+            ._SFER_in(_SFER),
+            ._SFER_out(_SFER_MEM),
+            .SFER_OE(SFER_OE_MEM),
+            ._CE_SRAM(_CE_SRAM),
+            ._OE_SRAM(_OE_SRAM),
+            ._WE_SRAM(_WE_SRAM),
+            ._UDS_SRAM(_UDS_SRAM),
+            ._LDS_SRAM(_LDS_SRAM),
+            .A_SRAM(A_SRAM),
+            .DIN_SRAM(DIN_SRAM),
+            .DOUT_SRAM(DOUT_SRAM),
+            .SRAM_BUS_DIR(SRAM_BUS_DIR)
+        );
+    `else
+        // Otherwise, instantiate a 2MB memory board; it uses the external SDRAM chip
+        mem_board_2mb slot1(
+            .RA(RA),
+            .A16(A16),
+            .A17(A17),
+            .A18(A18),
+            .A19(A19),
+            .A20(A20),
+            .RAM_SEL(RAM_SEL),
+            .DOTCK(DOTCK),
+            ._UDS(_UDS),
+            ._LDS(_LDS),
+            ._CAS(_CAS),
+            ._RAS(_RAS),
+            .MREAD(MREAD),
+            .MD_IN(MD_OUT),
+            .MD_OUT(MD_IN),
+            ._HDER_in(_HDER),
+            ._HDER_out(_HDER_MEM),
+            .HDER_OE(HDER_OE_MEM),
+            ._SFER_in(_SFER),
+            ._SFER_out(_SFER_MEM),
+            .SFER_OE(SFER_OE_MEM),
+            ._CE_SRAM(_CE_SRAM),
+            ._OE_SRAM(_OE_SRAM),
+            ._WE_SRAM(_WE_SRAM),
+            ._UDS_SRAM(_UDS_SRAM),
+            ._LDS_SRAM(_LDS_SRAM),
+            .A_SRAM(A_SRAM),
+            .DIN_SRAM(DIN_SRAM),
+            .DOUT_SRAM(DOUT_SRAM),
+            .SRAM_BUS_DIR(SRAM_BUS_DIR)
+        );
+    `endif
 
 endmodule

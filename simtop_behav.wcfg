@@ -5,7 +5,7 @@
    <db_ref_list>
       <db_ref path="simtop_behav.wdb" id="1">
          <top_modules>
-            <top_module name="\$unit_AM9512_FPU_sv_3443252536 " />
+            <top_module name="\$unit_AM9512_FPU_sv_3840823014 " />
             <top_module name="glbl" />
             <top_module name="simtop" />
             <top_module name="t400_io_pack" />
@@ -17,12 +17,12 @@
       </db_ref>
    </db_ref_list>
    <zoom_setting>
-      <ZoomStartTime time="41.341274188 ms"></ZoomStartTime>
-      <ZoomEndTime time="156.141274189 ms"></ZoomEndTime>
-      <Cursor1Time time="137.007940855 ms"></Cursor1Time>
+      <ZoomStartTime time="0.000000000 ms"></ZoomStartTime>
+      <ZoomEndTime time="255.061909357 ms"></ZoomEndTime>
+      <Cursor1Time time="0.001000000 ms"></Cursor1Time>
    </zoom_setting>
    <column_width_setting>
-      <NameColumnWidth column_width="397"></NameColumnWidth>
+      <NameColumnWidth column_width="389"></NameColumnWidth>
       <ValueColumnWidth column_width="120"></ValueColumnWidth>
    </column_width_setting>
    <WVObjectSize size="84" />
@@ -301,7 +301,6 @@
    <wvobject type="array" fp_name="/simtop/dut/lisa_hdmi_output/current_byte">
       <obj_property name="ElementShortName">current_byte[7:0]</obj_property>
       <obj_property name="ObjectShortName">current_byte[7:0]</obj_property>
-      <obj_property name="isExpanded"></obj_property>
    </wvobject>
    <wvobject type="array" fp_name="/simtop/dut/lisa_hdmi_output/rgb">
       <obj_property name="ElementShortName">rgb[23:0]</obj_property>
@@ -323,10 +322,6 @@
       <obj_property name="ElementShortName">lisa_y[9:0]</obj_property>
       <obj_property name="ObjectShortName">lisa_y[9:0]</obj_property>
    </wvobject>
-   <wvobject type="array" fp_name="/simtop/dut/lisa_hdmi_output/fb_index">
-      <obj_property name="ElementShortName">fb_index[18:0]</obj_property>
-      <obj_property name="ObjectShortName">fb_index[18:0]</obj_property>
-   </wvobject>
    <wvobject type="array" fp_name="/simtop/dut/lisa_hdmi_output/word_index">
       <obj_property name="ElementShortName">word_index[14:0]</obj_property>
       <obj_property name="ObjectShortName">word_index[14:0]</obj_property>
@@ -334,6 +329,10 @@
    <wvobject type="array" fp_name="/simtop/dut/lisa_hdmi_output/bit_index">
       <obj_property name="ElementShortName">bit_index[2:0]</obj_property>
       <obj_property name="ObjectShortName">bit_index[2:0]</obj_property>
+   </wvobject>
+   <wvobject type="array" fp_name="/simtop/dut/lisa_hdmi_output/pixel_word">
+      <obj_property name="ElementShortName">pixel_word[7:0]</obj_property>
+      <obj_property name="ObjectShortName">pixel_word[7:0]</obj_property>
    </wvobject>
    <wvobject type="logic" fp_name="/simtop/dut/lisa_hdmi_output/pixel">
       <obj_property name="ElementShortName">pixel</obj_property>

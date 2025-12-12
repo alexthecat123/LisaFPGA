@@ -87,8 +87,6 @@ module simtop(
     wire MOUSE_DN;
     wire MOUSE_DP;
 
-    logic [5:0] GPIO;
-
     logic SCC_C4M;
     logic SCC_WR;
     logic SCC_RD;
@@ -205,8 +203,6 @@ module simtop(
 
         .MOUSE_SEL(1'b0),
 
-        .GPIO(GPIO),
-
         .SCC_C4M(SCC_C4M),
         .SCC_WR(SCC_WR),
         .SCC_RD(SCC_RD),
@@ -241,7 +237,7 @@ module simtop(
         ._NMISW(_NMISW),
 
         .SPEED_SEL(2'b00),
-        .CPU_ROM_SEL(1'b0),
+        .CPU_ROM_SEL(1'b1),
         .IO_ROM_SEL(1'b0)
     );
 

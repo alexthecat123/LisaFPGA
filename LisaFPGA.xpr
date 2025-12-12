@@ -59,19 +59,19 @@
     <Option Name="IPUserFilesDir" Val="$PIPUSERFILESDIR"/>
     <Option Name="IPStaticSourceDir" Val="$PIPUSERFILESDIR/ipstatic"/>
     <Option Name="EnableBDX" Val="FALSE"/>
-    <Option Name="WTXSimLaunchSim" Val="70"/>
+    <Option Name="WTXSimLaunchSim" Val="76"/>
     <Option Name="WTModelSimLaunchSim" Val="0"/>
     <Option Name="WTQuestaLaunchSim" Val="0"/>
     <Option Name="WTIesLaunchSim" Val="0"/>
     <Option Name="WTVcsLaunchSim" Val="0"/>
     <Option Name="WTRivieraLaunchSim" Val="0"/>
     <Option Name="WTActivehdlLaunchSim" Val="0"/>
-    <Option Name="WTXSimExportSim" Val="5"/>
-    <Option Name="WTModelSimExportSim" Val="5"/>
-    <Option Name="WTQuestaExportSim" Val="5"/>
+    <Option Name="WTXSimExportSim" Val="8"/>
+    <Option Name="WTModelSimExportSim" Val="8"/>
+    <Option Name="WTQuestaExportSim" Val="8"/>
     <Option Name="WTIesExportSim" Val="0"/>
-    <Option Name="WTVcsExportSim" Val="5"/>
-    <Option Name="WTRivieraExportSim" Val="5"/>
+    <Option Name="WTVcsExportSim" Val="8"/>
+    <Option Name="WTRivieraExportSim" Val="8"/>
     <Option Name="WTActivehdlExportSim" Val="0"/>
     <Option Name="GenerateIPUpgradeLog" Val="TRUE"/>
     <Option Name="XSimRadix" Val="hex"/>
@@ -90,6 +90,63 @@
   <FileSets Version="1" Minor="32">
     <FileSet Name="sources_1" Type="DesignSrcs" RelSrcDir="$PSRCDIR/sources_1" RelGenDir="$PGENDIR/sources_1">
       <Filter Type="Srcs"/>
+      <File Path="$PSRCDIR/sources_1/imports/fx68k-master/microrom.mem">
+        <FileInfo>
+          <Attr Name="ImportPath" Val="$PPRDIR/../lisaStuff/fx68k-master/microrom.mem"/>
+          <Attr Name="ImportTime" Val="1613497850"/>
+          <Attr Name="UsedIn" Val="synthesis"/>
+          <Attr Name="UsedIn" Val="simulation"/>
+        </FileInfo>
+      </File>
+      <File Path="$PSRCDIR/sources_1/imports/fx68k-master/nanorom.mem">
+        <FileInfo>
+          <Attr Name="ImportPath" Val="$PPRDIR/../lisaStuff/fx68k-master/nanorom.mem"/>
+          <Attr Name="ImportTime" Val="1757128311"/>
+          <Attr Name="UsedIn" Val="synthesis"/>
+          <Attr Name="UsedIn" Val="simulation"/>
+        </FileInfo>
+      </File>
+      <File Path="$PSRCDIR/sources_1/imports/t400/t410_rom-e.vhd">
+        <FileInfo>
+          <Attr Name="AutoDisabled" Val="1"/>
+          <Attr Name="ImportPath" Val="$PPRDIR/../lisaStuff/t400/t410_rom-e.vhd"/>
+          <Attr Name="ImportTime" Val="1675028780"/>
+          <Attr Name="UsedIn" Val="synthesis"/>
+          <Attr Name="UsedIn" Val="simulation"/>
+        </FileInfo>
+      </File>
+      <File Path="$PSRCDIR/sources_1/imports/ROMs/IOROM_A8.mem">
+        <FileInfo>
+          <Attr Name="ImportPath" Val="$PPRDIR/../lisaStuff/ROMs/IOROM_A8.mem"/>
+          <Attr Name="ImportTime" Val="1758755617"/>
+          <Attr Name="UsedIn" Val="synthesis"/>
+          <Attr Name="UsedIn" Val="simulation"/>
+        </FileInfo>
+      </File>
+      <File Path="$PSRCDIR/sources_1/imports/ROMs/P6A.mem">
+        <FileInfo>
+          <Attr Name="ImportPath" Val="$PPRDIR/../lisaStuff/ROMs/P6A.mem"/>
+          <Attr Name="ImportTime" Val="1758674989"/>
+          <Attr Name="UsedIn" Val="synthesis"/>
+          <Attr Name="UsedIn" Val="simulation"/>
+        </FileInfo>
+      </File>
+      <File Path="$PSRCDIR/sources_1/ip/HDMI_MMCM_Mode34_30Hz/HDMI_MMCM_Mode34_30Hz.xci">
+        <FileInfo>
+          <Attr Name="AutoDisabled" Val="1"/>
+          <Attr Name="UsedIn" Val="synthesis"/>
+          <Attr Name="UsedIn" Val="implementation"/>
+          <Attr Name="UsedIn" Val="simulation"/>
+        </FileInfo>
+      </File>
+      <File Path="$PSRCDIR/sources_1/ip/HDMI_MMCM_Mode2_59Hz/HDMI_MMCM_Mode2_59Hz.xci">
+        <FileInfo>
+          <Attr Name="AutoDisabled" Val="1"/>
+          <Attr Name="UsedIn" Val="synthesis"/>
+          <Attr Name="UsedIn" Val="implementation"/>
+          <Attr Name="UsedIn" Val="simulation"/>
+        </FileInfo>
+      </File>
       <File Path="$PSRCDIR/sources_1/imports/scc/rxuart.v">
         <FileInfo>
           <Attr Name="AutoDisabled" Val="1"/>
@@ -120,80 +177,7 @@
           <Attr Name="UsedIn" Val="simulation"/>
         </FileInfo>
       </File>
-      <File Path="$PSRCDIR/sources_1/imports/fx68k-master/microrom.mem">
-        <FileInfo>
-          <Attr Name="ImportPath" Val="$PPRDIR/../lisaStuff/fx68k-master/microrom.mem"/>
-          <Attr Name="ImportTime" Val="1613497850"/>
-          <Attr Name="UsedIn" Val="synthesis"/>
-          <Attr Name="UsedIn" Val="simulation"/>
-        </FileInfo>
-      </File>
-      <File Path="$PSRCDIR/sources_1/imports/fx68k-master/nanorom.mem">
-        <FileInfo>
-          <Attr Name="ImportPath" Val="$PPRDIR/../lisaStuff/fx68k-master/nanorom.mem"/>
-          <Attr Name="ImportTime" Val="1757128311"/>
-          <Attr Name="UsedIn" Val="synthesis"/>
-          <Attr Name="UsedIn" Val="simulation"/>
-        </FileInfo>
-      </File>
-      <File Path="$PSRCDIR/sources_1/imports/t400/t410_rom-e.vhd">
-        <FileInfo>
-          <Attr Name="AutoDisabled" Val="1"/>
-          <Attr Name="ImportPath" Val="$PPRDIR/../lisaStuff/t400/t410_rom-e.vhd"/>
-          <Attr Name="ImportTime" Val="1675028780"/>
-          <Attr Name="UsedIn" Val="synthesis"/>
-          <Attr Name="UsedIn" Val="simulation"/>
-        </FileInfo>
-      </File>
-      <File Path="$PSRCDIR/sources_1/imports/ROMs/low.mem">
-        <FileInfo>
-          <Attr Name="ImportPath" Val="$PPRDIR/../lisaStuff/ROMs/low.mem"/>
-          <Attr Name="ImportTime" Val="1759602352"/>
-          <Attr Name="UsedIn" Val="synthesis"/>
-          <Attr Name="UsedIn" Val="simulation"/>
-        </FileInfo>
-      </File>
-      <File Path="$PSRCDIR/sources_1/imports/ROMs/high.mem">
-        <FileInfo>
-          <Attr Name="ImportPath" Val="$PPRDIR/../lisaStuff/ROMs/high.mem"/>
-          <Attr Name="ImportTime" Val="1759602348"/>
-          <Attr Name="UsedIn" Val="synthesis"/>
-          <Attr Name="UsedIn" Val="simulation"/>
-        </FileInfo>
-      </File>
-      <File Path="$PSRCDIR/sources_1/imports/ROMs/IOROM_A8.mem">
-        <FileInfo>
-          <Attr Name="ImportPath" Val="$PPRDIR/../lisaStuff/ROMs/IOROM_A8.mem"/>
-          <Attr Name="ImportTime" Val="1758755617"/>
-          <Attr Name="UsedIn" Val="synthesis"/>
-          <Attr Name="UsedIn" Val="simulation"/>
-        </FileInfo>
-      </File>
-      <File Path="$PSRCDIR/sources_1/imports/ROMs/VSROM.mem">
-        <FileInfo>
-          <Attr Name="ImportPath" Val="$PPRDIR/../lisaStuff/ROMs/VSROM.mem"/>
-          <Attr Name="ImportTime" Val="1758303187"/>
-          <Attr Name="UsedIn" Val="synthesis"/>
-          <Attr Name="UsedIn" Val="simulation"/>
-        </FileInfo>
-      </File>
-      <File Path="$PSRCDIR/sources_1/imports/ROMs/IOROM_88.mem">
-        <FileInfo>
-          <Attr Name="ImportPath" Val="$PPRDIR/../lisaStuff/ROMs/IOROM_88.mem"/>
-          <Attr Name="ImportTime" Val="1759621293"/>
-          <Attr Name="UsedIn" Val="synthesis"/>
-          <Attr Name="UsedIn" Val="simulation"/>
-        </FileInfo>
-      </File>
-      <File Path="$PSRCDIR/sources_1/imports/ROMs/P6A.mem">
-        <FileInfo>
-          <Attr Name="ImportPath" Val="$PPRDIR/../lisaStuff/ROMs/P6A.mem"/>
-          <Attr Name="ImportTime" Val="1758674989"/>
-          <Attr Name="UsedIn" Val="synthesis"/>
-          <Attr Name="UsedIn" Val="simulation"/>
-        </FileInfo>
-      </File>
-      <File Path="$PSRCDIR/sources_1/ip/HDMI_MMCM_Mode2_59Hz/HDMI_MMCM_Mode2_59Hz.xci">
+      <File Path="$PSRCDIR/sources_1/new/SDRAM_Controller_Banked.sv">
         <FileInfo>
           <Attr Name="AutoDisabled" Val="1"/>
           <Attr Name="UsedIn" Val="synthesis"/>
@@ -201,25 +185,11 @@
           <Attr Name="UsedIn" Val="simulation"/>
         </FileInfo>
       </File>
-      <File Path="$PSRCDIR/sources_1/ip/HDMI_MMCM_Mode34_30Hz/HDMI_MMCM_Mode34_30Hz.xci">
+      <File Path="$PSRCDIR/sources_1/imports/lisaStuff/mem_board_512k.sv">
         <FileInfo>
           <Attr Name="AutoDisabled" Val="1"/>
-          <Attr Name="UsedIn" Val="synthesis"/>
-          <Attr Name="UsedIn" Val="implementation"/>
-          <Attr Name="UsedIn" Val="simulation"/>
-        </FileInfo>
-      </File>
-      <File Path="$PSRCDIR/sources_1/new/sawtooth.sv">
-        <FileInfo>
-          <Attr Name="AutoDisabled" Val="1"/>
-          <Attr Name="UsedIn" Val="synthesis"/>
-          <Attr Name="UsedIn" Val="implementation"/>
-          <Attr Name="UsedIn" Val="simulation"/>
-        </FileInfo>
-      </File>
-      <File Path="$PSRCDIR/sources_1/new/SDRAM_Controller.sv">
-        <FileInfo>
-          <Attr Name="AutoDisabled" Val="1"/>
+          <Attr Name="ImportPath" Val="$PPRDIR/../lisaStuff/mem_board_512k.sv"/>
+          <Attr Name="ImportTime" Val="1759467044"/>
           <Attr Name="UsedIn" Val="synthesis"/>
           <Attr Name="UsedIn" Val="implementation"/>
           <Attr Name="UsedIn" Val="simulation"/>
@@ -242,6 +212,62 @@
           <Attr Name="ImportTime" Val="1760375409"/>
           <Attr Name="UsedIn" Val="synthesis"/>
           <Attr Name="UsedIn" Val="implementation"/>
+          <Attr Name="UsedIn" Val="simulation"/>
+        </FileInfo>
+      </File>
+      <File Path="$PSRCDIR/sources_1/imports/LisaROMs/CPU_LOW_H.mem">
+        <FileInfo>
+          <Attr Name="ImportPath" Val="$PPRDIR/../LisaROMs/CPU_LOW_H.mem"/>
+          <Attr Name="ImportTime" Val="1765042764"/>
+          <Attr Name="UsedIn" Val="synthesis"/>
+          <Attr Name="UsedIn" Val="simulation"/>
+        </FileInfo>
+      </File>
+      <File Path="$PSRCDIR/sources_1/imports/LisaROMs/CPU_HIGH_H.mem">
+        <FileInfo>
+          <Attr Name="ImportPath" Val="$PPRDIR/../LisaROMs/CPU_HIGH_H.mem"/>
+          <Attr Name="ImportTime" Val="1765042747"/>
+          <Attr Name="UsedIn" Val="synthesis"/>
+          <Attr Name="UsedIn" Val="simulation"/>
+        </FileInfo>
+      </File>
+      <File Path="$PSRCDIR/sources_1/imports/LisaROMs/CPU_LOW_3A.mem">
+        <FileInfo>
+          <Attr Name="ImportPath" Val="$PPRDIR/../LisaROMs/CPU_LOW_3A.mem"/>
+          <Attr Name="ImportTime" Val="1765413449"/>
+          <Attr Name="UsedIn" Val="synthesis"/>
+          <Attr Name="UsedIn" Val="simulation"/>
+        </FileInfo>
+      </File>
+      <File Path="$PSRCDIR/sources_1/imports/LisaROMs/CPU_HIGH_3A.mem">
+        <FileInfo>
+          <Attr Name="ImportPath" Val="$PPRDIR/../LisaROMs/CPU_HIGH_3A.mem"/>
+          <Attr Name="ImportTime" Val="1765413462"/>
+          <Attr Name="UsedIn" Val="synthesis"/>
+          <Attr Name="UsedIn" Val="simulation"/>
+        </FileInfo>
+      </File>
+      <File Path="$PSRCDIR/sources_1/imports/LisaROMs/VSROM_3A.mem">
+        <FileInfo>
+          <Attr Name="ImportPath" Val="$PPRDIR/../LisaROMs/VSROM_3A.mem"/>
+          <Attr Name="ImportTime" Val="1765413567"/>
+          <Attr Name="UsedIn" Val="synthesis"/>
+          <Attr Name="UsedIn" Val="simulation"/>
+        </FileInfo>
+      </File>
+      <File Path="$PSRCDIR/sources_1/imports/LisaROMs/IOROM_40.mem">
+        <FileInfo>
+          <Attr Name="ImportPath" Val="$PPRDIR/../LisaROMs/IOROM_40.mem"/>
+          <Attr Name="ImportTime" Val="1765431803"/>
+          <Attr Name="UsedIn" Val="synthesis"/>
+          <Attr Name="UsedIn" Val="simulation"/>
+        </FileInfo>
+      </File>
+      <File Path="$PSRCDIR/sources_1/imports/LisaROMs/VSROM_H.mem">
+        <FileInfo>
+          <Attr Name="ImportPath" Val="$PPRDIR/../LisaROMs/VSROM_H.mem"/>
+          <Attr Name="ImportTime" Val="1764611925"/>
+          <Attr Name="UsedIn" Val="synthesis"/>
           <Attr Name="UsedIn" Val="simulation"/>
         </FileInfo>
       </File>
@@ -371,6 +397,13 @@
           <Attr Name="UsedIn" Val="simulation"/>
         </FileInfo>
       </File>
+      <File Path="$PSRCDIR/sources_1/new/SDRAM_Controller_Flat.sv">
+        <FileInfo>
+          <Attr Name="UsedIn" Val="synthesis"/>
+          <Attr Name="UsedIn" Val="implementation"/>
+          <Attr Name="UsedIn" Val="simulation"/>
+        </FileInfo>
+      </File>
       <File Path="$PSRCDIR/sources_1/imports/lisaStuff/addressable_latch_LS259.sv">
         <FileInfo>
           <Attr Name="ImportPath" Val="$PPRDIR/../lisaStuff/addressable_latch_LS259.sv"/>
@@ -479,10 +512,8 @@
           <Attr Name="UsedIn" Val="simulation"/>
         </FileInfo>
       </File>
-      <File Path="$PSRCDIR/sources_1/imports/lisaStuff/mem_board_512k.sv">
+      <File Path="$PSRCDIR/sources_1/new/mem_board_2mb.sv">
         <FileInfo>
-          <Attr Name="ImportPath" Val="$PPRDIR/../lisaStuff/mem_board_512k.sv"/>
-          <Attr Name="ImportTime" Val="1759467044"/>
           <Attr Name="UsedIn" Val="synthesis"/>
           <Attr Name="UsedIn" Val="implementation"/>
           <Attr Name="UsedIn" Val="simulation"/>
@@ -755,7 +786,6 @@
       <Config>
         <Option Name="DesignMode" Val="RTL"/>
         <Option Name="TopModule" Val="top"/>
-        <Option Name="TopAutoSet" Val="TRUE"/>
       </Config>
     </FileSet>
     <FileSet Name="constrs_1" Type="Constrs" RelSrcDir="$PSRCDIR/constrs_1" RelGenDir="$PGENDIR/constrs_1">
@@ -859,6 +889,20 @@
         <Option Name="UseBlackboxStub" Val="1"/>
       </Config>
     </FileSet>
+    <FileSet Name="alt_dotck_generator" Type="BlockSrcs" RelSrcDir="$PSRCDIR/alt_dotck_generator" RelGenDir="$PGENDIR/alt_dotck_generator">
+      <File Path="$PSRCDIR/sources_1/ip/alt_dotck_generator/alt_dotck_generator.xci">
+        <FileInfo>
+          <Attr Name="AutoDisabled" Val="1"/>
+          <Attr Name="UsedIn" Val="synthesis"/>
+          <Attr Name="UsedIn" Val="implementation"/>
+          <Attr Name="UsedIn" Val="simulation"/>
+        </FileInfo>
+      </File>
+      <Config>
+        <Option Name="TopModule" Val="alt_dotck_generator"/>
+        <Option Name="UseBlackboxStub" Val="1"/>
+      </Config>
+    </FileSet>
   </FileSets>
   <Simulators>
     <Simulator Name="XSim">
@@ -912,6 +956,18 @@
       <Report Name="ROUTE_DESIGN.REPORT_METHODOLOGY" Enabled="1"/>
       <RQSFiles/>
     </Run>
+    <Run Id="alt_dotck_generator_synth_1" Type="Ft3:Synth" SrcSet="alt_dotck_generator" Part="xc7a100tcsg324-2" ConstrsSet="alt_dotck_generator" Description="Vivado Synthesis Defaults" AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" Dir="$PRUNDIR/alt_dotck_generator_synth_1" IncludeInArchive="true" IsChild="false" AutoIncrementalDir="$PSRCDIR/utils_1/imports/alt_dotck_generator_synth_1" AutoRQSDir="$PSRCDIR/utils_1/imports/alt_dotck_generator_synth_1" ParallelReportGen="true">
+      <Strategy Version="1" Minor="2">
+        <StratHandle Name="Vivado Synthesis Defaults" Flow="Vivado Synthesis 2025">
+          <Desc>Vivado Synthesis Defaults</Desc>
+        </StratHandle>
+        <Step Id="synth_design"/>
+      </Strategy>
+      <GeneratedRun Dir="$PRUNDIR" File="gen_run.xml"/>
+      <ReportStrategy Name="Vivado Synthesis Default Reports" Flow="Vivado Synthesis 2025"/>
+      <Report Name="ROUTE_DESIGN.REPORT_METHODOLOGY" Enabled="1"/>
+      <RQSFiles/>
+    </Run>
     <Run Id="impl_1" Type="Ft2:EntireDesign" Part="xc7a100tcsg324-2" ConstrsSet="constrs_1" Description="Default settings for Implementation." AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" State="current" Dir="$PRUNDIR/impl_1" SynthRun="synth_1" IncludeInArchive="true" IsChild="false" GenFullBitstream="true" AutoIncrementalDir="$PSRCDIR/utils_1/imports/impl_1" LaunchOptions="-jobs 12 " AutoRQSDir="$PSRCDIR/utils_1/imports/impl_1" ParallelReportGen="true">
       <Strategy Version="1" Minor="2">
         <StratHandle Name="Vivado Implementation Defaults" Flow="Vivado Implementation 2025"/>
@@ -950,6 +1006,25 @@
     <Run Id="HDMI_MMCM_Mode16_60Hz_impl_1" Type="Ft2:EntireDesign" Part="xc7a100tcsg324-2" ConstrsSet="HDMI_MMCM_Mode16_60Hz" Description="Default settings for Implementation." AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" SynthRun="HDMI_MMCM_Mode16_60Hz_synth_1" IncludeInArchive="false" IsChild="false" GenFullBitstream="true" AutoIncrementalDir="$PSRCDIR/utils_1/imports/HDMI_MMCM_Mode16_60Hz_impl_1" AutoRQSDir="$PSRCDIR/utils_1/imports/HDMI_MMCM_Mode16_60Hz_impl_1" ParallelReportGen="true">
       <Strategy Version="1" Minor="2">
         <StratHandle Name="Vivado Implementation Defaults" Flow="Vivado Implementation 2025"/>
+        <Step Id="init_design"/>
+        <Step Id="opt_design"/>
+        <Step Id="power_opt_design"/>
+        <Step Id="place_design"/>
+        <Step Id="post_place_power_opt_design"/>
+        <Step Id="phys_opt_design"/>
+        <Step Id="route_design"/>
+        <Step Id="post_route_phys_opt_design"/>
+        <Step Id="write_bitstream"/>
+      </Strategy>
+      <ReportStrategy Name="Vivado Implementation Default Reports" Flow="Vivado Implementation 2025"/>
+      <Report Name="ROUTE_DESIGN.REPORT_METHODOLOGY" Enabled="1"/>
+      <RQSFiles/>
+    </Run>
+    <Run Id="alt_dotck_generator_impl_1" Type="Ft2:EntireDesign" Part="xc7a100tcsg324-2" ConstrsSet="alt_dotck_generator" Description="Default settings for Implementation." AutoIncrementalCheckpoint="false" WriteIncrSynthDcp="false" SynthRun="alt_dotck_generator_synth_1" IncludeInArchive="false" IsChild="false" GenFullBitstream="true" AutoIncrementalDir="$PSRCDIR/utils_1/imports/alt_dotck_generator_impl_1" AutoRQSDir="$PSRCDIR/utils_1/imports/alt_dotck_generator_impl_1" ParallelReportGen="true">
+      <Strategy Version="1" Minor="2">
+        <StratHandle Name="Vivado Implementation Defaults" Flow="Vivado Implementation 2025">
+          <Desc>Default settings for Implementation.</Desc>
+        </StratHandle>
         <Step Id="init_design"/>
         <Step Id="opt_design"/>
         <Step Id="power_opt_design"/>

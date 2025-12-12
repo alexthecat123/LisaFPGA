@@ -254,19 +254,36 @@ module CPU_board(
 
     // And now we instantiate them; note that we can load ROM files that will be "burnt" into the ROMs during synthesis
     // One ROM connects to the low byte of the UD bus and the other connects to the high byte
-    bootrom_2764 #(.ROM_file("low.mem")) low_ROM(
+    // But we actually need two sets of ROMs, one for revision H and one for revision 3A
+    // And we use the CPU_ROM_SEL signal to pick between them
+    bootrom_2764 #(.ROM_file("CPU_LOW_H.mem")) low_ROM_H(
         .A(UA[13:1]),
-        ._OE(_ROM),
+        ._OE(_ROM | CPU_ROM_SEL), // Use the H ROMs when CPU_ROM_SEL is low
         ._CE(1'b0),
         .D(UD_CPU_in[7:0])
     );
 
-    bootrom_2764 #(.ROM_file("high.mem")) high_ROM(
+    bootrom_2764 #(.ROM_file("CPU_HIGH_H.mem")) high_ROM_H(
         .A(UA[13:1]),
-        ._OE(_ROM),
+        ._OE(_ROM | CPU_ROM_SEL), // Use the H ROMs when CPU_ROM_SEL is low
         ._CE(1'b0),
         .D(UD_CPU_in[15:8])
     );
+
+    bootrom_2764 #(.ROM_file("CPU_LOW_3A.mem")) low_ROM_3A(
+        .A(UA[13:1]),
+        ._OE(_ROM | ~CPU_ROM_SEL), // Use the 3A ROMs when CPU_ROM_SEL is high
+        ._CE(1'b0),
+        .D(UD_CPU_in[7:0])
+    );
+
+    bootrom_2764 #(.ROM_file("CPU_HIGH_3A.mem")) high_ROM_3A(
+        .A(UA[13:1]),
+        ._OE(_ROM | ~CPU_ROM_SEL), // Use the 3A ROMs when CPU_ROM_SEL is high
+        ._CE(1'b0),
+        .D(UD_CPU_in[15:8])
+    );
+
 
     // Now it's time to do the memory error address latches
     // Whenever there's an HDER or SFER (hard or soft memory error), the error address gets latched for our future reference
@@ -1033,10 +1050,18 @@ module CPU_board(
     // Now we can instantiate an actual VSROM to generate all the video timing signals
     // The address inputs are from our counter, plus VA9 and vid_addr_counter[14], which we'll generate later
     // That bit 14 of the vid addr counter tells the VSROM counter once we've overflowed the low 14 bits of the video address
-    PROM_6309 #(.ROM_file("VSROM.mem")) video_state_machine(
+    // Just like the main ROMs, we need two VSROMs, one for H and one for 3A
+    PROM_6309 #(.ROM_file("VSROM_H.mem")) video_state_machine_H(
         .A({vid_addr_counter[14], VA[9], VSROM_address[5:0]}),
-        // Permantently enabled
-        ._E1(1'b0),
+        ._E1(CPU_ROM_SEL), // Enable the H VSROM when the H ROM is selected
+        ._E2(1'b0),
+        // Output into VSROM_data
+        .D(VSROM_data)
+    );
+
+    PROM_6309 #(.ROM_file("VSROM_3A.mem")) video_state_machine_3A(
+        .A({vid_addr_counter[14], VA[9], VSROM_address[5:0]}),
+        ._E1(~CPU_ROM_SEL), // And enable the 3A VSROM when the 3A ROM is selected
         ._E2(1'b0),
         // Output into VSROM_data
         .D(VSROM_data)
