@@ -37,7 +37,7 @@ module CPU_board(
     (* MARK_DEBUG = "TRUE" *) input wire _KBIR, // open-collector, pulled up on CPU board
     (* MARK_DEBUG = "TRUE" *) input logic _IOIR, // open-collector, pulled up on i/o and CPU board
     output logic E,
-    output logic _RESET, // may need to be open-collector, wait for IOB to find out
+    (* MARK_DEBUG = "TRUE" *) output logic _RESET, // may need to be open-collector, wait for IOB to find out
     output logic CPUCK,
     input wire _LDMA, // open-collector i think
     input wire _BGACK, // also open-collector i think
@@ -175,9 +175,10 @@ module CPU_board(
     // The reset line coming out of our "555"; gets fed to the CPU
     (* MARK_DEBUG = "TRUE" *) logic _RSTHLT_555;
     logic fast_reset;
-    always_ff @(posedge DOTCK, negedge _RSTSW) begin
+    always_ff @(posedge DOTCK, negedge _RSTSW, negedge _HALTOUT_CPU) begin
         // If the reset switch is being pressed, then clear the reset counter, and set _RSTHLT_555 low since we're now in reset
-        if (!_RSTSW) begin
+        // Same goes for if the CPU itself is requesting a halt; on the Lisa, this just leads to an immediate reset
+        if (!_RSTSW || !_HALTOUT_CPU) begin
             rst_counter <= 24'b0;
             _RSTHLT_555 <= 1'b0;
         end else begin
@@ -205,7 +206,7 @@ module CPU_board(
     assign _HALT = _RSTHLT_555 & _HALTOUT_CPU;
 
     // Reset is a similar deal; it's just the 555 reset/halt signal wire-ANDed (or just ANDed in our case) with the CPU RESET output
-    logic _RSTOUT_CPU;
+    (* MARK_DEBUG = "TRUE" *) logic _RSTOUT_CPU;
     assign _RESET = _RSTHLT_555 & _RSTOUT_CPU;
 
 
@@ -214,9 +215,9 @@ module CPU_board(
     // And if the counter isn't reset in time and gets too big, it puts out a pulse on _BUST to signify a bus error
     logic [15:0] bust_counter;
     logic _BUST;
-    always_ff @(posedge CPUCK, negedge _RSTHLT_555, posedge _AS) begin
+    always_ff @(posedge CPUCK, negedge _RESET, posedge _AS) begin
         // If the Lisa is in reset or we want to reset the timer with AS, then reset the counter and make sure _BUST is deasserted
-        if (!_RSTHLT_555 || _AS) begin
+        if (!_RESET || _AS) begin
             bust_counter <= 16'b0;
             _BUST <= 1'b1;
         // Otherwise, we need to see if we have a bus error or not
@@ -245,7 +246,7 @@ module CPU_board(
     // Note that we only care about passing on the lower 8 bits here b/c the rest go thru the MMU
     (* MARK_DEBUG = "TRUE" *) logic [23:1] UA;
     logic [23:1] UA_CPU;
-    assign UA = !_RSTHLT_555 ? 23'b0 : UA_CPU;
+    assign UA = !_RESET ? 23'b0 : UA_CPU;
     assign A[8:1] = _BGACK ? UA[8:1] : 8'bz;
 
 
@@ -389,8 +390,8 @@ module CPU_board(
     // Same idea for _BUST too
     // Unlike the others, there should never be a situation here where both signals are asserted at once, but account for it anyway
     // Here we also need to account for the reset condition, in which case we want _BUST_latched to be deasserted
-    always @(_RMEA, _BUST, _RSTHLT_555) begin
-        if (!_RSTHLT_555) begin
+    always @(_RMEA, _BUST, _RESET) begin
+        if (!_RESET) begin
             _BUST_latched <= 1'b1;
         end else begin
             if (!_BUST & _RMEA) begin
@@ -422,9 +423,9 @@ module CPU_board(
     (* MARK_DEBUG = "TRUE" *) logic PCK;
     (* MARK_DEBUG = "TRUE" *) logic [7:0] _T;
     // This takes the form of a JK flip-flop
-    always_ff @(posedge DOTCK, posedge _MMUIO, negedge _RSTHLT_555) begin
+    always_ff @(posedge DOTCK, posedge _MMUIO, negedge _RESET) begin
         // If we're in reset, deassert _MMU_reg_WE
-        if (!_RSTHLT_555) begin
+        if (!_RESET) begin
             _MMU_reg_WE <= 1'b1;
         // If we're not doing an MMUIO cycle, then we shouldn't be writing to the MMU regs (async preset)
         end else if (_MMUIO) begin
@@ -486,7 +487,7 @@ module CPU_board(
     // By the way, _START is a signal that lets you access the MMU when your program is executing out of ROM
     // Once you have the MMU set up, you deassert (pull high) _START and then your program can start executing from RAM
     (* MARK_DEBUG = "TRUE" *) logic _START;
-    assign _MMU_highreg_CS = !_RSTHLT_555 ? 1'b1 : ~(UA[14] | ~_MMUIO | _START);
+    assign _MMU_highreg_CS = !_RESET ? 1'b1 : ~(UA[14] | ~_MMUIO | _START);
 
     // Next, implement the logic for the LS245 that hooks the UD bus to the MMU reg bus
     // The MMU reg bus is called TD
@@ -603,8 +604,8 @@ module CPU_board(
     // _VAL is the latch signal for the vid addr latch
     (* MARK_DEBUG = "TRUE" *) logic _VAL;
     logic [7:0] VAL_output;
-    always_ff @(negedge _VAL, negedge _RSTHLT_555) begin
-        if (!_RSTHLT_555) begin
+    always_ff @(negedge _VAL, negedge _RESET) begin
+        if (!_RESET) begin
             // Clear it if we're in reset, just to make sure that it's in a known state instead of XXXXX
             VAL_output <= 8'b0;
         end else begin
@@ -1033,9 +1034,9 @@ module CPU_board(
     // First, we need to make a counter that counts through all the addresses of the video state machine ROM
     logic [7:0] VSROM_address;
     logic VSROM_address_clr;
-    always_ff @(negedge VIDEO, posedge VSROM_address_clr, negedge _RSTHLT_555) begin
+    always_ff @(negedge VIDEO, posedge VSROM_address_clr, negedge _RESET) begin
         // Clear the counter if VSROM_address_clr is asserted
-        if (VSROM_address_clr | !_RSTHLT_555) begin
+        if (VSROM_address_clr | !_RESET) begin
             VSROM_address <= 8'b0;
         end else begin
             // Else increment it on the falling edge of VIDEO (the start of a video cycle)
@@ -1110,9 +1111,9 @@ module CPU_board(
     (*MARK_DEBUG = "TRUE" *) logic [15:0] vid_addr_counter;
     logic full_vid_addr_counter_clr;
     assign full_vid_addr_counter_clr = vid_addr_clr & ~_CMUX;
-    always_ff @(negedge vid_addr_clk, posedge full_vid_addr_counter_clr, negedge _RSTHLT_555) begin
+    always_ff @(negedge vid_addr_clk, posedge full_vid_addr_counter_clr, negedge _RESET) begin
         // If the clear conditions are met, clear the counter (async clear)
-        if (full_vid_addr_counter_clr | !_RSTHLT_555) begin
+        if (full_vid_addr_counter_clr | !_RESET) begin
             vid_addr_counter <= 16'b0;
         end else begin
             // Otherwise, increment the counter on each clock

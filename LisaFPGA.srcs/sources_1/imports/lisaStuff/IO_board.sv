@@ -148,9 +148,10 @@ module IO_board(
     // The 6504's address and data buses
     (* MARK_DEBUG = "TRUE" *) logic [15:0] MA;
     (* MARK_DEBUG = "TRUE" *) logic [7:0] FD_in;
+
     (* MARK_DEBUG = "TRUE" *) logic [7:0] FD_out;
 
-    (* MARK_DEBUG = "TRUE" *)  logic [15:0] MA_unlatched;
+    (* MARK_DEBUG = "TRUE" *) logic [15:0] MA_unlatched;
     (* MARK_DEBUG = "TRUE" *) logic [7:0] FD_out_unlatched;
     (* MARK_DEBUG = "TRUE" *) logic RW_FDC_latched;
     (* MARK_DEBUG = "TRUE" *) logic _RW_FDC_unlatched;
@@ -380,7 +381,13 @@ module IO_board(
     assign _state_machine_OE1 = FDC_address_decoder_1[0];
     // We don't actually use QH for anything, so just tie it to a dummy wire
     (* MARK_DEBUG = "TRUE" *) logic QH_dummy; 
-    (*MARK_DEBUG = "TRUE" *) logic [7:0] PSM_out;
+    
+    (* MARK_DEBUG = "TRUE" *) logic [7:0] PSM_out;
+
+    // Address and data lines for the PROM
+    (* MARK_DEBUG = "TRUE" *) logic [7:0] PROM_address;
+    (* MARK_DEBUG = "TRUE" *) logic [7:0] PROM_data;
+
     LS323_shiftreg FDC_state_shiftreg(
         .clk(state_machine_clk),
         ._CLR(PROM_data[3]),
@@ -398,10 +405,6 @@ module IO_board(
 
     // Now let's do the PROM; it's called the "P6A" on the schematics, which is the EXACT SAME PART used in the Apple ][ disk controller
     // Cool, right?
-
-    // Address and data lines for the PROM
-    (* MARK_DEBUG = "TRUE" *) logic [7:0] PROM_address;
-    (* MARK_DEBUG = "TRUE" *) logic [7:0] PROM_data;
 
     // Initialize the PROM address to 0 on power-up; just for simulation
     // Otherwise, the address will be X and the PROM will output X, which will propagate through the LS323 and cause everything to break
@@ -744,6 +747,7 @@ module IO_board(
         );
     `else
         // In real life, use a real external SCC until I can develop a better core
+        // Which I may never do, but at least the PCB supports it
         assign SCC_C4M = C4M;
         assign SCC_WR = ~_RESET ^ _WSIO;
         assign SCC_RD = ~_RESET ^ _RSIO;
@@ -894,7 +898,7 @@ module IO_board(
     // This one's simpler; no latching or anything, just a straight parity output to PB5 of the VIA
     parity_generator_LS280 ProFile_output_parity_generator(
         .ABCDEFGHI({PD_out, 1'b0}), // The 9th input is tied to 0 to make odd parity
-        .EVEN(parity_out)
+        .ODD(parity_out)
     );
 
 

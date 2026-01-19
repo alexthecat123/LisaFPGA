@@ -113,7 +113,7 @@ module top(
 
         input logic MOUSE_SEL,
 
-        //output logic [5:0] GPIO,
+        output logic [1:0] GPIO,
 
         output logic SCC_C4M,
         output logic SCC_WR,
@@ -214,7 +214,6 @@ module top(
     tri A17;
     tri A18;
     tri A19;
-    logic DOTCK;
     logic MREAD;
     logic _CAS;
     logic _RAS;
@@ -266,6 +265,8 @@ module top(
     logic SCCCK_2x;
     logic C5M_ungated;
     logic C5M;
+    // As well as a 12MHz clock for USB
+    logic usbclk;
 
     // We can switch between 4 different speed settings for the Lisa dot clock using the speed select inputs
     logic dotck_20M;
@@ -282,7 +283,8 @@ module top(
         .C16M(C16M_ungated),
         .COPCK_2x(COPCK_2x),
         .SCCCK_2x(SCCCK_2x),
-        .C5M(C5M_ungated)
+        .C5M(C5M_ungated),
+        .usbclk(usbclk)
     );
 /*
     // This second MMCM generates the alternate non-standard dotck frequencies we can select from
@@ -402,15 +404,39 @@ module top(
     end
 
     `ifdef SIMULATION
+        // In simulation, we want the Lisa to always be on, so we don't gate the clocks
         assign lisa_dotck = lisa_dotck_ungated;
         assign C16M = C16M_ungated;
         assign SCCCK = SCCCK_ungated;
         assign C5M = C5M_ungated;
     `else
-        assign lisa_dotck = (ON) ? lisa_dotck_ungated : 1'b0;
-        assign C16M = (ON) ? C16M_ungated : 1'b0;
-        assign SCCCK = (ON) ? SCCCK_ungated : 1'b0;
-        assign C5M = (ON) ? C5M_ungated : 1'b0;
+        // In real life, we gate the clocks based on the ON signal
+        // Use BUFGCE primitives for this; clocks shouldn't be routed through regular muxes
+        BUFGCE lisa_dotck_bufg (
+            .I(lisa_dotck_ungated), // Input clock
+            .CE(ON), // Clock enable (1 = pass clock through, 0 = hold low)
+            .O(lisa_dotck) // Output clock
+        );
+        BUFGCE C16M_bufg (
+            .I(C16M_ungated),
+            .CE(ON),
+            .O(C16M)
+        );
+        BUFGCE SCCCK_bufg (
+            .I(SCCCK_ungated),
+            .CE(ON),
+            .O(SCCCK)
+        );
+        BUFGCE C5M_bufg (
+            .I(C5M_ungated),
+            .CE(ON),
+            .O(C5M)
+        );
+        // This was the old and dumb way of doing things; it's a good thing I stopped doing it like this
+        //assign lisa_dotck = (ON) ? lisa_dotck_ungated : 1'b0;
+        //assign C16M = (ON) ? C16M_ungated : 1'b0;
+        //assign SCCCK = (ON) ? SCCCK_ungated : 1'b0;
+        //assign C5M = (ON) ? C5M_ungated : 1'b0;
     `endif
 
     logic _RSTSW_int;
@@ -437,7 +463,6 @@ module top(
     // 1 means don't invert, 0 means invert
     // From the CPU board's perspective, a 1 actually inverts the video, but the aforementioned LS132 inverts it back again
     //assign INVID = 1'b1;
-    assign DOTCK = lisa_dotck; // 20.37504MHz clock
 
     /*assign _RSIR = 1'b1;
     assign _KBIR = 1'b1;
@@ -454,7 +479,7 @@ module top(
         HDMI_Interface lisa_hdmi_output(
             .sysclk(sysclk_ibuf),
             ._reset(_RESET),
-            .DOTCK(DOTCK),
+            .DOTCK(lisa_dotck),
             .VA_overflow(VA_overflow), // Replaces VSYNC; better reflects the VSYNC time which is actually longer than _VSYNC
             ._clr_vid_clk(_clr_vid_clk), // Replaces _HSYNC; better reflects the HSYNC time which is actually shorter than _HSYNC
             .VID(VID_int),
@@ -462,6 +487,7 @@ module top(
             .TONE(TONE),
             .VC(VC),
             .CPU_ROM_SEL(CPU_ROM_SEL),
+            .blank_video(~ON), // When the Lisa is off, we want to blank the video output
             .tmds_clock(tmds_clock),
             .tmds(tmds)
         );
@@ -528,7 +554,7 @@ module top(
         .A17(A17),
         .A18(A18),
         .A19(A19),
-        .DOTCK(DOTCK),
+        .DOTCK(lisa_dotck),
         .MREAD(MREAD),
         ._CAS(_CAS),
         ._RAS(_RAS),
@@ -584,43 +610,6 @@ module top(
     logic NMI_OE_IO;
     logic _CRES_in;
     logic _CRES_out;
-
-
-    // There are two different things that can drive the keyboard: USB and the actual Lisa keyboard interface
-    logic KBD_in_USB;
-    logic KBD_out_USB;
-    logic KBD_in_LISA;
-    logic KBD_out_LISA;
-    // Do the Lisa keyboard interface first
-    // Make an IOBUF for the bidirectional keyboard line
-    IOBUF KBDBuf (
-        // Any data received from the keyboard goes to KBD_in
-        .O(KBD_in_LISA),
-        // The actual bidirectional pin that goes to the keyboard connector is KBD
-        .IO(KBD),
-        // We hard-wire the data we want to send to the keyboard to 1'b0 (the keyboard line is open-collector, so we can only pull it low)
-        .I(1'b0),
-        // And we pull it low whenever KBD_out is low; otherwise the IOBUF makes the line high-z so the keyboard can drive it
-        .T(KBD_out_LISA)
-    );
-    // And now the USB one
-
-
-
-    // Now we have to mux between the two, depending on the KBD_SEL signal
-    always_comb begin
-        // If it's high, then use the USB keyboard
-        if (KBD_SEL) begin
-            KBD_in = KBD_in_USB;
-            KBD_out_USB = KBD_out;
-            KBD_out_LISA = 1'b1; // Make sure the Lisa keyboard interface is inactive
-        // And if it's low, use the Lisa keyboard interface
-        end else begin
-            KBD_in = KBD_in_LISA;
-            KBD_out_LISA = KBD_out;
-            KBD_out_USB = 1'b1; // Make sure the USB keyboard interface is inactive
-        end
-    end
 
     // Here we mux VPA from the CPU board, I/O board, and expansion slots together
     always_comb begin
@@ -752,7 +741,7 @@ module top(
             _WRQ_ESFLOPPY = _WRQ;
             HDS_ESFLOPPY = HDS;
             PH_ESFLOPPY = PH;
-            MT1_ESFLOPPY = MT1;
+            MT1_ESFLOPPY = PWM; // SHOULD BE MT1, CHANGED TO ACCOUNT FOR BODGE WIRES ON BOARD
             MT0_ESFLOPPY = MT0;
             _DR1_ESFLOPPY = _DR1;
             _DR0_ESFLOPPY = _DR0;
@@ -772,7 +761,228 @@ module top(
 
     // The mouse can either be driven over USB or by a real Lisa/Mac mouse
     logic [6:0] M_USB;
-    // Instantiate the USB mouse module
+
+    // Now it's time to do our USB peripherals
+    // Previously, the first USB port was for the mouse and the second for the keyboard
+    // But now they're flexible and you can plug either device into either port
+    // So we basically instantiate two USB HID host controllers, one for each port
+    // And then read their type codes to figure out which is which
+    // Then we route the mouse data from whichever port has the mouse, and the keyboard data from whichever port has the keyboard
+
+    // Before we do anything else related to USB though, we need to mess with our reset signal a bit
+    // The regular reset signal is generated in the DOTCK domain, but we need it in the usbclk domain
+    // So we'll create a synchronized version of it here
+    logic usbrst_sync;
+    logic usbrst;
+    always_ff @(posedge usbclk) begin
+        usbrst_sync <= _RESET;
+        usbrst <= usbrst_sync;
+    end
+
+    // We also need IOBUFs for the USB data lines since they're bidirectional
+    // First for the USB D+ line
+    logic usb_dp_in_port0;
+    logic usb_dp_out_port0;
+    logic usb_dm_in_port0;
+    logic usb_dm_out_port0;
+    logic usb_oe_port0;
+    IOBUF USB_PORT0_DP_BUF (
+        // Send anything coming over the port to usb_dp_in
+        .O(usb_dp_in_port0),
+        // The bidirectional line is MOUSE_DP (the first USB port was previously hard-wired to be for the mouse)
+        .IO(MOUSE_DP),
+        // Drive the line with usb_dp_out
+        .I(usb_dp_out_port0),
+        // But only drive it when usb_oe is asserted (high)
+        .T(~usb_oe_port0)
+    );
+
+    // Same for the USB D- line
+    IOBUF USB_PORT0_DN_BUF (
+        .O(usb_dm_in_port0),
+        .IO(MOUSE_DN), // The first USB port was previously hard-wired to be for the mouse, the name is a bit of a misnomer now
+        .I(usb_dm_out_port0),
+        .T(~usb_oe_port0)
+    );
+
+    logic [1:0] usb_typ_port0;
+    logic usb_report_port0;
+    logic [7:0] usb_mouse_btn_port0;
+    logic signed [7:0] usb_mouse_dx_port0;
+    logic signed [7:0] usb_mouse_dy_port0;
+    logic [7:0] usb_key_modifiers_port0;
+    logic [7:0] usb_key1_port0;
+    // Instantiate the USB HID host module for the first USB port (port 0, previously hard-coded to be for the mouse)
+    usb_hid_host usb_port0 (
+        .usbclk(usbclk), // 12MHz clock
+        .usbrst_n(usbrst), // Active-low reset
+        .usb_dm(usb_dm_out_port0), // USB I/O
+        .usb_dp(usb_dp_out_port0),
+        .usb_dp_in(usb_dp_in_port0),
+        .usb_dm_in(usb_dm_in_port0),
+        .usb_oe(usb_oe_port0),
+        .typ(usb_typ_port0), // Type 2 = mouse, type 1 = keyboard
+        .report(usb_report_port0), // Pulses when we get a report from the device
+        .mouse_btn(usb_mouse_btn_port0), // Mouse button states
+        .mouse_dx(usb_mouse_dx_port0), // Mouse x and y movement
+        .mouse_dy(usb_mouse_dy_port0),
+        .key_modifiers(usb_key_modifiers_port0), // Keyboard key modifier bits
+        .key1(usb_key1_port0) // Up to 4 simultaneous keycodes
+    );
+
+    // Now repeat all that for the second USB port (port 1), previously hard-coded to be for the keyboard but now can be for anything
+    // We also need IOBUFs for the USB data lines since they're bidirectional
+    // First for the USB D+ line
+    logic usb_dp_in_port1;
+    logic usb_dp_out_port1;
+    logic usb_dm_in_port1;
+    logic usb_dm_out_port1;
+    logic usb_oe_port1;
+    IOBUF USB_PORT1_DP_BUF (
+        // Send anything coming over the port to usb_dp_in
+        .O(usb_dp_in_port1),
+        // The bidirectional line is KBD_DP (the second USB port was previously hard-wired to be for the keyboard)
+        .IO(KBD_DP),
+        // Drive the line with usb_dp_out
+        .I(usb_dp_out_port1),
+        // But only drive it when usb_oe is asserted (high)
+        .T(~usb_oe_port1)
+    );
+
+    // Same for the USB D- line
+    IOBUF USB_PORT1_DN_BUF (
+        .O(usb_dm_in_port1),
+        .IO(KBD_DN), // The second USB port was previously hard-wired to be for the keyboard
+        .I(usb_dm_out_port1),
+        .T(~usb_oe_port1)
+    );
+
+    logic [1:0] usb_typ_port1;
+    logic usb_report_port1;
+    logic [7:0] usb_mouse_btn_port1;
+    logic signed [7:0] usb_mouse_dx_port1;
+    logic signed [7:0] usb_mouse_dy_port1;
+    logic [7:0] usb_key_modifiers_port1;
+    logic [7:0] usb_key1_port1;
+    // Instantiate the USB HID host module for the second USB port (port 1, previously hard-coded to be for the keyboard)
+    usb_hid_host usb_port1 (
+        .usbclk(usbclk), // 12MHz clock
+        .usbrst_n(usbrst), // Active-low reset
+        .usb_dm(usb_dm_out_port1), // USB I/O
+        .usb_dp(usb_dp_out_port1),
+        .usb_dp_in(usb_dp_in_port1),
+        .usb_dm_in(usb_dm_in_port1),
+        .usb_oe(usb_oe_port1),
+        .typ(usb_typ_port1), // Type 2 = mouse, type 1 = keyboard
+        .report(usb_report_port1), // Pulses when we get a report from the device
+        .mouse_btn(usb_mouse_btn_port1), // Mouse button states
+        .mouse_dx(usb_mouse_dx_port1), // Mouse x and y movement
+        .mouse_dy(usb_mouse_dy_port1),
+        .key_modifiers(usb_key_modifiers_port1), // Keyboard key modifier bits
+        .key1(usb_key1_port1) // Up to 4 simultaneous keycodes
+    );
+
+    // Now we just need to look at the type codes from each port and route the data accordingly
+    logic signed [7:0] mouse_dx_selected;
+    logic signed [7:0] mouse_dy_selected;
+    logic [7:0] mouse_btn_selected;
+    logic mouse_report_selected;
+    logic [7:0] key_modifiers_selected;
+    logic [7:0] key1_selected;
+    logic key_report_selected;
+
+    always_comb begin
+        if (usb_typ_port0 == 2'd1) begin
+            // If the port0 type is 1, then it's a keyboard, so route it to the keyboard module
+            key_modifiers_selected = usb_key_modifiers_port0;
+            key1_selected = usb_key1_port0;
+            key_report_selected = usb_report_port0;
+        end else if (usb_typ_port1 == 2'd1) begin
+            // Otherwise, if port1 is a keyboard, then route that to the keyboard module
+            // Notice that if both ports are keyboards, port0 takes priority
+            key_modifiers_selected = usb_key_modifiers_port1;
+            key1_selected = usb_key1_port1;
+            key_report_selected = usb_report_port1;
+        end else begin
+            // If neither port is a keyboard, just send zeros to the keyboard module
+            key_modifiers_selected = 8'b0;
+            key1_selected = 8'b0;
+            key_report_selected = 1'b0;
+        end
+        if (usb_typ_port0 == 2'd2) begin
+            // If the port0 type is 2, then it's a mouse, so route it to the mouse module
+            mouse_dx_selected = usb_mouse_dx_port0;
+            mouse_dy_selected = usb_mouse_dy_port0;
+            mouse_btn_selected = usb_mouse_btn_port0;
+            mouse_report_selected = usb_report_port0;
+        end else if (usb_typ_port1 == 2'd2) begin
+            // Otherwise, if port1 is a mouse, then route that to the mouse module
+            // Once again, if both ports are the same peripheral, then port0 takes priority
+            mouse_dx_selected = usb_mouse_dx_port1;
+            mouse_dy_selected = usb_mouse_dy_port1;
+            mouse_btn_selected = usb_mouse_btn_port1;
+            mouse_report_selected = usb_report_port1;
+        end else begin
+            // If neither port is a mouse, just send zeros to the mouse module
+            mouse_dx_selected = 8'sb0;
+            mouse_dy_selected = 8'sb0;
+            mouse_btn_selected = 1'b0;
+            mouse_report_selected = 1'b0;
+        end
+    end
+
+    // Finally, instantiate the USB mouse interface module, routing in the appropriate signals
+    usb_mouse_interface usb_mouse_interface (
+        .usbclk(usbclk),
+        .usbrst(usbrst),
+        .mouse_dx_in(mouse_dx_selected),
+        .mouse_dy_in(mouse_dy_selected),
+        .mouse_btn_in(mouse_btn_selected),
+        .report(mouse_report_selected),
+        .M(M_USB)
+    );
+
+    // And now the USB keyboard one
+    usb_keyboard_interface usb_kbd_interface (
+        .usbclk(usbclk),
+        .usbrst(usbrst),
+        .key_modifiers_in(key_modifiers_selected),
+        .key1_in(key1_selected),
+        .report(key_report_selected),
+        .KBD_in(KBD_out_USB),
+        .KBD_out(KBD_in_USB)
+    );
+
+    // There's a little more we need to do for the keyboard though; it's bidirectional, so we need to make an IOBUF for the Lisa keyboard interface
+    logic KBD_in_USB;
+    logic KBD_out_USB;
+    logic KBD_in_LISA;
+    logic KBD_out_LISA;
+    IOBUF KBDBuf (
+        // Any data received from the keyboard goes to KBD_in
+        .O(KBD_in_LISA),
+        // The actual bidirectional pin that goes to the keyboard connector is KBD
+        .IO(KBD),
+        // We hard-wire the data we want to send to the keyboard to 1'b0 (the keyboard line is open-collector, so we can only pull it low)
+        .I(1'b0),
+        // And we pull it low whenever KBD_out is low; otherwise the IOBUF makes the line high-z so the keyboard can drive it
+        .T(KBD_out_LISA)
+    );
+
+    // And we have to mux between the USB and Lisa keyboard interfaces, depending on the KBD_SEL signal
+    always_comb begin
+        // If it's high, then use the USB keyboard
+        if (KBD_SEL) begin
+            KBD_in = KBD_in_USB;
+            KBD_out_USB = KBD_out;
+            KBD_out_LISA = 1'b1; // Make sure the Lisa keyboard interface is inactive
+        // And if it's low, use the Lisa keyboard interface
+        end else begin
+            KBD_in = KBD_in_LISA;
+            KBD_out_LISA = KBD_out;
+            KBD_out_USB = 1'b1; // Make sure the USB keyboard interface is inactive
+        end
+    end
 
     // The Lisa mouse interface is literally just the M_LISA line from the port declaration
     // So now mux between them based on the MOUSE_SEL signal
@@ -1058,7 +1268,7 @@ module top(
             .A20(A20),
             .VA9(VA9B),
             .VA10(VA10B),
-            .DOTCK(DOTCK),
+            .DOTCK(lisa_dotck),
             ._UDS(_UDS),
             ._LDS(_LDS),
             ._CAS(_CAS),
@@ -1101,7 +1311,7 @@ module top(
             .A19(A19),
             .A20(A20),
             .RAM_SEL(RAM_SEL),
-            .DOTCK(DOTCK),
+            .DOTCK(lisa_dotck),
             ._UDS(_UDS),
             ._LDS(_LDS),
             ._CAS(_CAS),

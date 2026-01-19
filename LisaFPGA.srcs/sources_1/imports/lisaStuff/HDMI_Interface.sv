@@ -1,197 +1,3 @@
-/*module HDMI_Interface(
-    input  logic sysclk,
-    input  logic _reset,
-    input  logic DOTCK,
-    input  logic _VSYNC,
-    input  logic _HSYNC,
-    input  logic VID,
-    output logic tmds_clock,
-    output logic [2:0] tmds
-);
-
-    // ----------------------------------------------------------------
-    // HDMI PLL: generate pixel clocks
-    // ----------------------------------------------------------------
-    logic clk_pixel;
-    logic clk_pixel_x5;
-    logic clk_audio;
-
-    //hdmi_pll_xilinx pll(
-    //    .clk_in1(sysclk),
-    //    .clk_out1(clk_pixel),
-    //    .clk_out2(clk_pixel_x5)
-    //);
-
-    HDMI_MMCM_Mode2_59Hz hdmi_clockgen (
-        .sysclk(sysclk),
-        .clk_pixel(clk_pixel),
-        .clk_pixel_x5(clk_pixel_x5)
-    );
-
-    //HDMI_MMCM_Mode34_30Hz hdmi_clockgen (
-    //    .sysclk(sysclk),
-    //    .clk_pixel(clk_pixel),
-    //    .clk_pixel_x5(clk_pixel_x5)
-    //);
-
-    // Dummy audio
-    logic [10:0] counter = 1'd0;
-    always_ff @(posedge clk_pixel) begin
-        counter <= counter == 11'd1546 ? 1'd0 : counter + 1'd1;
-    end
-    assign clk_audio = clk_pixel && (counter == 11'd1546);
-
-    logic [15:0] audio_sample_word [1:0];
-    assign audio_sample_word = '{16'd0, 16'd0}; // silence
-
-    // ----------------------------------------------------------------
-    // Framebuffer (double-buffered)
-    // ----------------------------------------------------------------
-    // Each buffer: 32K bytes = Lisa’s 720*364/8 = ~32K
-    logic [7:0] buf0 [0:32759];
-    logic [7:0] buf1 [0:32759];
-
-    (* MARK_DEBUG = "TRUE" *) logic active_buf;     // 0 = buf0 is displayed, 1 = buf1 is displayed
-    (* MARK_DEBUG = "TRUE" *) logic write_buf_sel;  // opposite of active_buf
-    (* MARK_DEBUG = "TRUE" *) logic swap_request;   // handshake for VSYNC swap
-
-    // ----------------------------------------------------------------
-    // Video capture domain (DOTCK, negedge)
-    // ----------------------------------------------------------------
-    (* MARK_DEBUG = "TRUE" *) logic [14:0] byte_counter;
-    (* MARK_DEBUG = "TRUE" *) logic [2:0]  bit_counter;
-    (* MARK_DEBUG = "TRUE" *) logic [7:0]  current_byte;
-
-    always_ff @(negedge DOTCK) begin
-        if (!_reset) begin
-            bit_counter  <= 0;
-            byte_counter <= 0;
-            current_byte <= 8'd0;
-            swap_request <= 0;
-        end else begin
-            if (_VSYNC == 1'b0) begin
-                // VSYNC low: restart and request buffer swap
-                bit_counter  <= 0;
-                byte_counter <= 0;
-                current_byte <= 8'd0;
-                swap_request <= 1;
-            end else if (_HSYNC == 1'b0) begin
-                swap_request <= 0;
-                // Active video region
-                current_byte <= {current_byte[6:0], VID};
-                if (bit_counter == 3'd7) begin
-                    if (write_buf_sel == 1'b0)
-                        buf0[byte_counter] <= {current_byte[6:0], VID};
-                    else
-                        buf1[byte_counter] <= {current_byte[6:0], VID};
-
-                    byte_counter <= byte_counter + 1;
-                    bit_counter  <= 0;
-                    current_byte <= 0;
-                end else begin
-                    bit_counter <= bit_counter + 1;
-                end
-            end else begin
-                swap_request <= 0;
-                // hblank, still advance bits (just like active branch above?)
-                if (bit_counter == 3'd7) begin
-                    if (write_buf_sel == 1'b0)
-                        buf0[byte_counter] <= {current_byte[6:0], VID};
-                    else
-                        buf1[byte_counter] <= {current_byte[6:0], VID};
-
-                    byte_counter <= byte_counter + 1;
-                    bit_counter  <= 0;
-                    current_byte <= 0;
-                end
-            end
-        end
-    end
-
-    // ----------------------------------------------------------------
-    // Buffer swap synchronizer (DOTCK → clk_pixel)
-    // -------------------------------------MARK_DEBUG---------------------------------
-    (* MARK_DEBUG = "TRUE" *) logic swap_request_sync1, swap_request_sync2;
-    always_ff @(posedge clk_pixel) begin
-        if (!_reset) begin
-            active_buf    <= 1'b0;
-            write_buf_sel <= 1'b1;
-            swap_request_sync1 <= 1'b0;
-            swap_request_sync2 <= 1'b0;
-        end
-        swap_request_sync1 <= swap_request;
-        swap_request_sync2 <= swap_request_sync1;
-        if (swap_request_sync1 && !swap_request_sync2) begin
-            // swap buffers
-            active_buf    <= ~active_buf;
-            write_buf_sel <= active_buf; // opposite
-        end
-    end
-
-    // ----------------------------------------------------------------
-    // HDMI readout (clk_pixel domain)
-    // ----------------------------------------------------------------
-    (* MARK_DEBUG = "TRUE" *) logic [23:0] rgb;
-    (* MARK_DEBUG = "TRUE" *) logic [11:0] cx;
-    (* MARK_DEBUG = "TRUE" *) logic [10:0] cy;
-
-    //(* MARK_DEBUG = "TRUE" *) logic [9:0] lisa_x, lisa_y;
-    (* MARK_DEBUG = "TRUE" *) logic [18:0] fb_index;
-    (* MARK_DEBUG = "TRUE" *) logic [14:0] word_index;
-    (* MARK_DEBUG = "TRUE" *) logic [2:0]  bit_index;
-    (* MARK_DEBUG = "TRUE" *) logic pixel;
-
-    always_comb begin
-        // Scale mapping: 1920x1080 -> 720x364 doubled/tripled
-        //lisa_x     = (cx - 240) >> 1;  // 0–719
-        //lisa_y     = cy / 3;           // 0–363
-        //fb_index   = lisa_y * 720 + lisa_x; // 0..262143
-        //word_index = fb_index >> 3;
-        //bit_index  = fb_index & 7;
-        fb_index = (cy * 720) + cx;
-        word_index = fb_index >> 3;
-        bit_index  = fb_index & 7;
-
-        if (active_buf == 1'b0)
-            pixel = buf0[word_index][bit_index];
-        else
-            pixel = buf1[word_index][bit_index];
-    end
-
-    always_ff @(posedge clk_pixel) begin
-        //if (cx >= 240 && cx < 1680 && cy < 1092) begin
-        if (cy < 364) begin
-            rgb <= pixel ? 24'h000000 : 24'hFFFFFF;
-        end else begin
-            rgb <= 24'h202020; // border
-        end
-    end
-
-    // ----------------------------------------------------------------
-    // HDMI IP Core
-    // ----------------------------------------------------------------
-    hdmi #(
-        .VIDEO_ID_CODE(2), //2
-        .VIDEO_REFRESH_RATE(59.94), //59.94
-        .AUDIO_RATE(48000),
-        .AUDIO_BIT_WIDTH(16)
-    ) hdmi_inst (
-        .clk_pixel_x5(clk_pixel_x5),
-        .clk_pixel(clk_pixel),
-        .clk_audio(clk_audio),
-        .reset(~_reset),
-        .rgb(rgb),
-        .audio_sample_word(audio_sample_word),
-        .tmds(tmds),
-        .tmds_clock(tmds_clock),
-        .cx(cx),
-        .cy(cy)
-    );
-
-endmodule*/
-
-
-
 `timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////////
 // Company: 
@@ -225,6 +31,7 @@ module HDMI_Interface(
     input logic TONE,
     input logic [2:0] VC,
     input logic CPU_ROM_SEL,
+    input logic blank_video, // When high, force the video output to black
     output logic tmds_clock,
     output logic [2:0] tmds
     );
@@ -243,19 +50,18 @@ module HDMI_Interface(
     logic clk_audio;
 
     hdmi_pll_xilinx pll(.clk_in1(sysclk), .clk_out1(clk_pixel), .clk_out2(clk_pixel_x5));
-
-    /*HDMI_MMCM_Mode16_60Hz hdmi_clockgen (
+    /*hdmi_clk_1080p60 hdmi_clockgen (
         .sysclk(sysclk),
         .clk_pixel(clk_pixel),
         .clk_pixel_x5(clk_pixel_x5)
     );*/
 
-    logic [10:0] counter = 1'd0;
+    logic [11:0] counter = 1'd0;
     always_ff @(posedge clk_pixel)
     begin
-        counter <= counter == 11'd1546 ? 1'd0 : counter + 1'd1;
+        counter <= counter == 12'd1546 ? 1'd0 : counter + 1'd1; // 1546 for 48KHz at 74.25MHz pixel clock, 3094 for 48KHz at 148.5MHz
     end
-    assign clk_audio = clk_pixel && counter == 11'd1546;
+    assign clk_audio = clk_pixel && counter == 12'd1546; // Same here; 1546 for 48KHz at 74.25MHz pixel clock, 3094 for 48KHz at 148.5MHz
 
     (* MARK_DEBUG = "TRUE" *) logic [15:0] audio_sample_word;
 
@@ -300,7 +106,8 @@ module HDMI_Interface(
     // And it needs to be 32832 bytes (608*432/8) for the 3A ROMs
     // But we'll make it even bigger (33000 bytes) to account for the fact that the 3A ROMs capture an extra few bytes at the end of the frame
     logic [7:0] lisa_framebuffer [0:32999];
-    (* MARK_DEBUG = "TRUE" *) logic [9:0] lisa_x, lisa_y;
+    (* MARK_DEBUG = "TRUE" *) logic [9:0] lisa_x;
+    (* MARK_DEBUG = "TRUE" *) logic [9:0] lisa_y;
     (* MARK_DEBUG = "TRUE" *) logic [15:0] word_index;
     (* MARK_DEBUG = "TRUE" *) logic [2:0] bit_index;
     (* MARK_DEBUG = "TRUE" *) logic pixel;
@@ -399,21 +206,43 @@ module HDMI_Interface(
     // Because of that, we'll actually only draw 431 rows of the 3A image, not the full 432, meaning it's actually 608x431
     // And thus it ends at (1568, 970) instead of (1568, 972)
 
-    // I used to do all this in an always_comb block, but it wouldn't meet timing, so now I've pipelined it into 3 stages
+    // I used to do all this in an always_comb block, but it wouldn't meet timing, so now I've pipelined it into a few stages
+
+    // Before we do any of that though, we need to make a LUT for division by 3
+    // Hardware dividers take tons of hardware resources and are too slow to meet timing at 148.5MHz, so a LUT is the solution
+    /*logic [9:0] div3_lut [0:1079];
+
+    // Initialize the lookup table
+    initial begin: init_div3_lut
+        integer i;
+        for (i = 0; i <= 1079; i = i + 1) begin
+            div3_lut[i] = i / 3;
+        end
+    end*/
 
     // First up, we compute the Lisa pixel coordinates from the HDMI pixel coordinates
     // Each Lisa pixel is 2x3 HDMI pixels
+    //(* MARK_DEBUG = "TRUE" *) logic [9:0] lisa_x_int;
+    //(* MARK_DEBUG = "TRUE" *) logic [9:0] lisa_y_int;
     always_ff @(posedge clk_pixel) begin
         if (CPU_ROM_SEL == 1'b0) begin
             // If we have H ROMs, then each Lisa pixel is 2x3 HDMI pixels
             lisa_x <= (cx - 240) >> 1; // Remove the start offset of 240 HDMI pixels and divide by 2, gives us Lisa pixel x coordinate 0-719
-            lisa_y <= cy / 3; // Divide by 3, gives us Lisa pixel y coordinate 0-363
+            //lisa_y <= div3_lut[cy]; // Divide by 3 using our LUT, gives us Lisa pixel y coordinate 0-363
+            lisa_y <= cy / 3;
         end else begin
             // If we have 3A ROMs, then each Lisa pixel is 2x2 HDMI pixels
             lisa_x <= (cx - 352) >> 1; // Remove the start offset of 352 HDMI pixels and divide by 2, gives us Lisa pixel x coordinate 0-607
             lisa_y <= (cy - 108) >> 1; // Remove the start offset of 108 HDMI pixels and divide by 2, gives us Lisa pixel y coordinate 0-431 (or really 0-430 since last line is cut off)
         end
     end
+
+    // In this pipeline stage, we just register the Lisa pixel coordinates
+    // This gives the division by 3 for the H ROMs time to complete in the previous stage
+    /*always_ff @(posedge clk_pixel) begin
+        lisa_x <= lisa_x_int;
+        lisa_y <= lisa_y_int;
+    end*/
 
     // Next, we use the Lisa pixel coordinates to compute our bit index into the framebuffer
     // Which we then use to determine which word and bit within that word we need to read from the framebuffer
@@ -429,26 +258,50 @@ module HDMI_Interface(
         end
     end
 
-    (* MARK_DEBUG = "TRUE" *) logic [7:0] pixel_word; // For debugging, remove once HDMI is working
+    (* MARK_DEBUG = "TRUE" *) logic [7:0] pixel_word;
+
+    // Pipeline the read address for better timing
+    logic [15:0] word_index_stage3, word_index_stage4;
+    logic [2:0] bit_index_stage3, bit_index_stage4;
+
+    always_ff @(posedge clk_pixel) begin
+        // In the third stage, we just pass the values along
+        word_index_stage3 <= word_index;
+        bit_index_stage3 <= bit_index;
+        
+        // In the fourth stage, we read the pixel word from the framebuffer
+        word_index_stage4 <= word_index_stage3;
+        bit_index_stage4 <= bit_index_stage3;
+        pixel_word <= lisa_framebuffer[word_index_stage3];
+        
+        // And finally, in the fifth stage, we extract the pixel bit
+        pixel <= pixel_word[bit_index_stage4];
+    end
 
     // Finally, we read the proper byte from the framebuffer and extract the pixel bit
     // This is identical for both H and 3A ROMs
-    always_ff @(posedge clk_pixel) begin
-        pixel_word <= lisa_framebuffer[word_index];
-        pixel <= lisa_framebuffer[word_index][bit_index];
-end
+    //always_ff @(posedge clk_pixel) begin
+    //    pixel_word <= lisa_framebuffer[word_index];
+    //    pixel <= pixel_word[bit_index];
+    //end
 
     // Now we can finally generate the RGB output based on the pixel value
-    // But we need to delay cx and cy by 3 clock cycles to match the pixel signal
-    (* MARK_DEBUG = "TRUE" *) logic [11:0] cx1, cx2, cx3;
-    (* MARK_DEBUG = "TRUE" *) logic [10:0] cy1, cy2, cy3;
+    // But we need to delay cx and cy by 5 clock cycles to match the pixel signal
+    (* MARK_DEBUG = "TRUE" *) logic [11:0] cx1, cx2, cx3, cx4, cx5;//, cx6;
+    (* MARK_DEBUG = "TRUE" *) logic [10:0] cy1, cy2, cy3, cy4, cy5;//, cy6;
     always_ff @(posedge clk_pixel) begin
         cx1 <= cx;
         cx2 <= cx1;
         cx3 <= cx2;
+        cx4 <= cx3;
+        cx5 <= cx4;
+        //cx6 <= cx5;
         cy1 <= cy;
         cy2 <= cy1;
         cy3 <= cy2;
+        cy4 <= cy3;
+        cy5 <= cy4;
+        //cy6 <= cy5;
     end
 
     // Note: The "brightest" I've seen anything be able to go on the Lisa is an 0x11 on the CONT value (MacWorks Plus)
@@ -460,20 +313,22 @@ end
         // Check the ROM revision; the active area of the frame depends on this
         if (CPU_ROM_SEL == 1'b0) begin
             // H ROM active area: (240,0) to (1680,1092)
-            if (cx3 >= 240 && cx3 < 1680 && cy3 < 1092) begin
+            if (cx5 >= 240 && cx5 < 1680 && cy5 < 1092) begin
                 // Figure out if the pixel is black or white, taking CONT into account
                 // No need to worry about INVID since it's already handled on the CPU board
-                rgb <= pixel ? {(6'h3f - CONT), 2'b00, (6'h3f - CONT), 2'b00, (6'h3f - CONT), 2'b00} : 24'h000000;
+                // If the Lisa is off (blank_video), force black output
+                rgb <= blank_video ? 24'h000000 : (pixel ? {(6'h3f - CONT), 2'b00, (6'h3f - CONT), 2'b00, (6'h3f - CONT), 2'b00} : 24'h000000);
             end else begin
                 // If we're outside the active area, output a dark gray border
                 rgb <= 24'h202020;
             end
         end else begin
             // 3A ROM active area: (352,108) to (1568,972) or really (1568,970) because of the missing last line
-            if (cx3 >= 352 && cx3 < 1568 && cy3 >= 108 && cy3 < 970) begin
+            if (cx5 >= 352 && cx5 < 1568 && cy5 >= 108 && cy5 < 970) begin
                 // Figure out if the pixel is black or white, taking CONT into account
                 // No need to worry about INVID since it's already handled on the CPU board
-                rgb <= pixel ? {(6'h3f - CONT), 2'b00, (6'h3f - CONT), 2'b00, (6'h3f - CONT), 2'b00} : 24'h000000;
+                // If the Lisa is off (blank_video), force black output
+                rgb <= blank_video ? 24'h000000 : (pixel ? {(6'h3f - CONT), 2'b00, (6'h3f - CONT), 2'b00, (6'h3f - CONT), 2'b00} : 24'h000000);
             end else begin
                 // If we're outside the active area, output a dark gray border
                 rgb <= 24'h202020;
@@ -486,9 +341,9 @@ end
         .clk_pixel_x5(clk_pixel_x5), // Input clocks
         .clk_pixel(clk_pixel),
         .clk_audio(clk_audio),
-        .reset(~_reset_hdmi), // Reset signal, active high
+        //.reset(~_reset_hdmi), // Reset signal, active high
         .rgb(rgb), // RGB pixel value
-        .audio_sample_word({audio_sample_word, audio_sample_word}), // Audio sample, ignore for now
+        .audio_sample_word({audio_sample_word, audio_sample_word}), // Audio samples (stereo)
         .tmds(tmds), // outputs to HDMI port
         .tmds_clock(tmds_clock),
         .cx(cx), // x and y coordinates of current pixel
