@@ -328,9 +328,12 @@ module CPU_board(
     // Reads from the mem error address latch if asserted
     logic _RMEA;
     // Latch the proper bits of the address and the VIDEO bit
-    logic mea_latch_we;
-    always_ff @(posedge mea_latch_we) begin
-        mea_latch <= {A[20:6], VIDEO};
+    logic mea_latch_we, mea_latch_we_prev;
+    always_ff @(posedge DOTCK) begin
+        if (mea_latch_we && !mea_latch_we_prev) begin
+            mea_latch <= {A[20:6], VIDEO};
+        end
+        mea_latch_we_prev <= mea_latch_we;
     end
     // Put the latched data on the bus if the CPU wants to read the latch, otherwise tri-state it
     assign BD = _RMEA ? 16'bz : mea_latch;
@@ -345,8 +348,12 @@ module CPU_board(
     logic _CMUX;
     assign dma_latch_oe = ~_BGACK & ~_CMUX;
     logic [7:0] dma_latch;
-    always_ff @(posedge _LDMA) begin
-        dma_latch <= BD[12:5];
+    logic _LDMA_prev;
+    always_ff @(posedge DOTCK) begin
+        if (_LDMA && !_LDMA_prev) begin
+            dma_latch <= BD[12:5];
+        end
+        _LDMA_prev <= _LDMA;
     end
     assign A[20:13] = dma_latch_oe ? dma_latch : 8'bz;
 
@@ -457,7 +464,7 @@ module CPU_board(
     logic PCK;
     logic [7:0] _T;
     // This takes the form of a JK flip-flop
-    always_ff @(posedge DOTCK, posedge _MMUIO, negedge _RESET) begin
+    always_ff @(posedge DOTCK, negedge _RESET) begin
         // If we're in reset, deassert _MMU_reg_WE
         if (!_RESET) begin
             _MMU_reg_WE <= 1'b1;
@@ -636,15 +643,18 @@ module CPU_board(
     // Changing the addr in this latch lets you move the 32K screen page anywhere in memory
     // It also has an LED hooked to it that blinks during ROM diagnostics
     // _VAL is the latch signal for the vid addr latch
-    logic _VAL;
+    logic _VAL, _VAL_prev;
     logic [7:0] VAL_output;
-    always_ff @(negedge _VAL, negedge _RESET) begin
+    always_ff @(posedge DOTCK, negedge _RESET) begin
         if (!_RESET) begin
             // Clear it if we're in reset, just to make sure that it's in a known state instead of XXXXX
             VAL_output <= 8'b0;
         end else begin
-            // Put the video address in the top part of the output, then a 0, and then the LED value
-            VAL_output <= {UD_CPU_out[5:0], 1'b0, UD_CPU_out[7]};
+            if (!_VAL && _VAL_prev) begin
+                // Put the video address in the top part of the output, then a 0, and then the LED value
+                VAL_output <= {UD_CPU_out[5:0], 1'b0, UD_CPU_out[7]};
+            end
+            _VAL_prev <= _VAL;
         end
     end
 
@@ -682,7 +692,7 @@ module CPU_board(
     logic [3:0] Q_counter;
     logic _VT7;
     // Clock the counter on DOTCK
-    always_ff @(posedge DOTCK, posedge fast_reset) begin
+    always_ff @(posedge DOTCK) begin
         // If the system gets reset, put the counter in a known state (outputs 0, carry out deasserted)
         if (fast_reset) begin
             Q_counter <= 4'b1000;
@@ -737,7 +747,7 @@ module CPU_board(
     // And now we need to actually implement the _BERR flip-flop
     // The K input is permanently deasserted, so we just have J (_BERR_unlatched), preset (_BUST), and clear (AS)
     logic _BERR;
-    always_ff @(posedge DOTCK, negedge _BUST, posedge _AS) begin
+    always_ff @(posedge DOTCK) begin
         // If we get a bus error indicated by _BUST, then preset the flop
         if (!_BUST) begin
             _BERR <= 1'b0;
@@ -757,7 +767,7 @@ module CPU_board(
     // This would mean that we're in between CPU and video cycles, so we don't want to assert RAS
     logic _RAS_inhibit;
     assign _RAS_inhibit = VIDEO | CPUC1;
-    always_ff @(posedge DOTCK, negedge _RAS_inhibit) begin
+    always_ff @(posedge DOTCK) begin
         // If RAS is inhibited, deassert it right away (async clear)
         if (!_RAS_inhibit) begin
             _RAS <= 1'b1;
@@ -782,7 +792,7 @@ module CPU_board(
     assign MCY = ~_MEM & CPUC1;
     // We set the SPIO latch if BGACK says we're the bus master, this isn't a memory cycle, the stuff we're trying to access isn't read-only, we're in a CPU cycle not a video cycle, and we're in timing state T2
     assign SPIO_unlatched = ~(~_BGACK | MCY | ~_RO | ~CPUC1 | _T[2]);
-    always_ff @(posedge DOTCK, posedge _AS) begin
+    always_ff @(posedge DOTCK) begin
         // If AS is pulsed, then clear the SPIO latch (async clear)
         if (_AS) begin
             _SPIO <= 1'b1;
@@ -813,7 +823,7 @@ module CPU_board(
     // And not if something else is the master and currently controls the bus
     assign _full_CAS_inhibit = ~(MMU_CAS_inhibit & ~VIDEO & ~(~_BGACK & CPUC1));
     // Now the flip-flop itself
-    always_ff @(posedge DOTCK, negedge _full_CAS_inhibit) begin
+    always_ff @(posedge DOTCK) begin
         // If CAS is inhibited, deassert it right away (async clear)
         if (!_full_CAS_inhibit) begin
             _CAS <= 1'b1;
@@ -836,7 +846,7 @@ module CPU_board(
     // Note that we just look at ACCK here instead of XORing with _STK like we did for CAS because it's impossible to have an I/O stack seg
     assign IOCY_unlatched = ~(~_BGACK | _T[2] | ACCK | _IO | ~CPUC1);
     // Now the flop itself
-    always_ff @(posedge DOTCK, posedge _AS) begin
+    always_ff @(posedge DOTCK) begin
         // If AS is pulsed, then clear the IOCY latch (async clear)
         if (_AS) begin
             _IOCY <= 1'b1;
