@@ -366,3 +366,21 @@ set_property -dict {PACKAGE_PIN F5 IOSTANDARD LVCMOS33} [get_ports IO_ROM_SEL]
 connect_debug_port u_ila_0/probe3 [get_nets [list io_board/DIS]]
 
 
+
+
+
+connect_debug_port u_ila_0/probe0 [get_nets [list {io_board/PD_out[0]} {io_board/PD_out[1]} {io_board/PD_out[2]} {io_board/PD_out[3]} {io_board/PD_out[4]} {io_board/PD_out[5]} {io_board/PD_out[6]} {io_board/PD_out[7]}]]
+connect_debug_port u_ila_0/probe6 [get_nets [list {io_board/pp_via/addr[0]} {io_board/pp_via/addr[1]} {io_board/pp_via/addr[2]} {io_board/pp_via/addr[3]}]]
+connect_debug_port u_ila_0/probe8 [get_nets [list {io_board/SD_in[0]} {io_board/SD_in[1]} {io_board/SD_in[2]} {io_board/SD_in[3]} {io_board/SD_in[4]} {io_board/SD_in[5]} {io_board/SD_in[6]} {io_board/SD_in[7]}]]
+connect_debug_port u_ila_0/probe9 [get_nets [list _BSY]]
+connect_debug_port u_ila_0/probe10 [get_nets [list io_board/_CMD]]
+connect_debug_port u_ila_0/probe11 [get_nets [list io_board/_CMD_ungated]]
+connect_debug_port u_ila_0/probe12 [get_nets [list io_board/_PARITY]]
+connect_debug_port u_ila_0/probe13 [get_nets [list _ProFile_EN]]
+connect_debug_port u_ila_0/probe14 [get_nets [list io_board/_ProFile_EN]]
+connect_debug_port u_ila_0/probe15 [get_nets [list io_board/_PSTRB]]
+connect_debug_port u_ila_0/probe17 [get_nets [list io_board/DR_W]]
+connect_debug_port u_ila_0/probe18 [get_nets [list io_board/OCD]]
+connect_debug_port u_ila_0/probe19 [get_nets [list io_board/OCD_ungated]]
+connect_debug_port u_ila_0/probe20 [get_nets [list io_board/PR_W_ungated]]
+

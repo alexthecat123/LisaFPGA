@@ -113,9 +113,20 @@ assign write_t1c_h = addr == 4'h5 && wen && falling;
 assign write_t2c_h = addr == 4'h9 && wen && falling;
 
 assign irq_events[1] = (ca1_c != ca1_d) && (ca1_d != pcr[0]);
-assign irq_events[0] = (ca2_c != ca2_d) && (ca2_d != pcr[2]);
-assign irq_events[4] = (cb1_c != cb1_d) && (cb1_d != pcr[4]);
-assign irq_events[3] = (cb2_c != cb2_d) && (cb2_d != pcr[6]);
+// There was A BUG here in the original NanoMac VIA code that I had to fix for LisaFPGA
+// The original code check for edges on ca2 and would set the interrupt flag whenever it detected an edge no matter what
+// But this shouldn't happen when ca2 is an output; we only care about edges on ca2 when it's an input
+// So gate the edge detection with pcr[3], which is the data direction bit for ca2
+assign irq_events[0] = (ca2_c != ca2_d) && (ca2_d != pcr[2]) && !pcr[3];
+// There was A BUG here in the original NanoMac VIA code that I had to fix for LisaFPGA
+// The original code would set the cb1 interrupt flag on any edge on cb1
+// But it should only do this when cb1 is an input and not used with the shiftreg
+// The shiftreg can use it as an input or an output for the shift clock, but in either case we don't want to trigger interrupts on it
+// So gate it with shiftreg usage so it's only active when the shiftreg is off (in which case cb1 is always an input)
+assign irq_events[4] = (cb1_c != cb1_d) && (cb1_d != pcr[4]) && !serport_en;
+// There was A BUG here in the original NanoMac VIA code that I had to fix for LisaFPGA
+// It's the same bug as with ca2, except for cb2 instead
+assign irq_events[3] = (cb2_c != cb2_d) && (cb2_d != pcr[6]) && !cb2_t_int;
 
 assign ca2_t = pcr[3];
 assign cb2_t_int = serport_en?acr[4]:pcr[7];
@@ -196,13 +207,18 @@ always @(posedge clock, posedge reset) begin
       end
       
       // CB2 logic
-      if(irq_events[4])
+      if(irq_events[4]) begin
         cb2_handshake_o <= 1'b1;
-      else if ((ren || wen) && addr == 4'h0 && falling)
+      // The was A BUG here in the original NanoMac VIA code that I had to fix for LisaFPGA
+      // The original code would set cb2_handshake_o to 0 on any access to to address 0 (IRB/ORB), but it should only do this on writes
+      // ca2_handshake_o is read/write, but cb2_handshake_o is only supposed to be affected by writes
+      end else if (wen && addr == 4'h0 && falling) begin
         cb2_handshake_o <= 1'b0;
+      end
 
       if(falling) begin
-         if ((ren || wen ) && addr == 4'h0)
+        // Same BUG here as with cb2_handshake_o; the original code would set cb2_pulse_o to 0 on any access, not just writes
+         if (wen && addr == 4'h0)
            cb2_pulse_o <= 1'b0;
          else            
            cb2_pulse_o <= 1'b1;
@@ -210,6 +226,13 @@ always @(posedge clock, posedge reset) begin
 
       // Interrupt logic
       irq_flags <= irq_flags | irq_events;
+      // This was A BUG in the original NanoMac VIA code that I had to fix for LisaFPGA
+      // The original code would stop generating shift reg interrupts when the shiftreg was disabled (ACR[4:2] = 000)
+      // But it wouldn't clear an existing shift reg interrupt when you disabled the shift reg, which goes against what the datasheet says
+      // So add this if statement to clear the interrupt whenever the shiftreg is disabled
+      if (!serport_en) begin
+        irq_flags[2] <= 1'b0;
+      end
 
       // Writes --
       if(wen && falling) begin
@@ -284,8 +307,12 @@ always @(posedge clock, posedge reset) begin
          data_out <= (prb & ddrb) | (irb & ~ddrb);
 	 if(acr[7]) data_out[7] <= timer_a_out;
       end
+      // Not really a BUG, but the original NanoMac VIA code (and the original VIA) reads the actual states of the inputs to form IRA no matter what
+      // Whereas IRB reflects the state of ORB for all pins set to output and the states of the inputs for pins set to input
+      // On the real Lisa, the actual states of the pins will always equal the output register for pins set to outputs because there's no weird loading going on
+      // So let's apply the IRB logic to IRA as well to avoid issues with how we feed the VIA's inputs in LisaFPGA
       if(addr == 4'h1) // ORA
-        data_out <= ira;
+        data_out <= (pra & ddra) | (ira & ~ddra);
       if(addr == 4'h2) // DDRB
         data_out <= ddrb;
       if(addr == 4'h3) // DDRA
@@ -312,8 +339,9 @@ always @(posedge clock, posedge reset) begin
         data_out  <= { irq_out, irq_flags };
       if(addr == 4'hE) // IER
         data_out  <= { 1'b1, irq_mask };
+      // Same not really BUG here as with IRA above; make it behave like IRB
       if(addr == 4'hF) // ORA
-        data_out  <= ira;
+        data_out  <= (pra & ddra) | (ira & ~ddra);
 
       // Read actions --
       if(ren && falling) begin
@@ -431,9 +459,17 @@ always @(posedge clock, posedge reset) begin
                           
         if(timer_b_decrement) begin
           if(timer_b_count == 16'h0000) begin
-              if(timer_b_oneshot_trig) 
+              // There was A BUG here in the original NanoMac VIA code that I had to fix for LisaFPGA
+              // Originally, timer_b_timeout <= 1'b1; was outside the if(timer_b_oneshot_trig) block
+              // This would cause timer_b_timeout to be set on every underflow, not just the very first one when in one-shot mode
+              // This results in repeated interrupts in one-shot mode, which is not how the VIA is supposed to work
+              // It was causing Xenix's ProFile read routines to break because they fail to mask off the timer B interrupt when checking for BSY
+              // So a timer B interrupt looks the same as BSY being deasserted, causing Xenix to think the drive is ready when it's not
+              // The fix is simple; just move the timer_b_timeout line within the if statement so it only gets set on the first underflow
+              if(timer_b_oneshot_trig) begin
                 timer_b_oneshot_trig <= 1'b0;
-              timer_b_timeout <= 1'b1;
+                timer_b_timeout <= 1'b1;
+              end
           end
           if(timer_b_count[7:0] == 8'h00) begin
               if((acr[4:2] == 3'b001) ||
