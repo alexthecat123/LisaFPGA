@@ -198,7 +198,9 @@ module CPU_board(
             end else begin
                 // Otherwise, we still need to be in reset, so increment the counter (one increment per DOTCK) and ensure _RSTHLT is low
                 rst_counter <= rst_counter + 1'b1;
-                if (rst_counter < 24'd5) begin
+                // The fast_reset threshold should always be 5 less than the rst_counter threshold
+                // Otherwise, the T-states will be out of sync with the CPU's S-states, causing weirdness in certain edge cases
+                if (rst_counter < 24'd14999995) begin
                     fast_reset <= 1'b1;
                 end else begin
                     fast_reset <= 1'b0;
@@ -694,6 +696,11 @@ module CPU_board(
     // Clock the counter on DOTCK
     always_ff @(posedge DOTCK) begin
         // If the system gets reset, put the counter in a known state (outputs 0, carry out deasserted)
+        // It's important that we come out of fast_reset 5 cycles before coming out of regular reset
+        // This way, the counter will be synchronized with the 68K and the rest of the system properly when it all comes out of reset
+        // If we don't do this, then the counter's T states won't align with the 68K's S states quite right
+        // Which normally won't be a problem, but will cause weirdness in certain situations, like BLU's hard disk read routines
+        // They require repeated MOVEP accesses to the VIA, and if we aren't synced right, then the accesses will be too fast for the VIA
         if (fast_reset) begin
             Q_counter <= 4'b1000;
             _VT7 <= 1'b1;
