@@ -130,6 +130,10 @@ set_false_path -to [get_pins lisa_hdmi_output/bufgmux_clk_pixel/CE1]
 set_false_path -to [get_pins lisa_hdmi_output/bufgmux_clk_pixel_x5/CE0]
 set_false_path -to [get_pins lisa_hdmi_output/bufgmux_clk_pixel_x5/CE1]
 
+## Make some more false paths going into the Lite Adapter synchronizers for the PH0 and MT signals
+set_false_path -to [get_cells lisa_lite/PH0_int_reg]
+set_false_path -to [get_cells lisa_lite/MT_int_reg]
+
 ## Create a constraint for our 48KHz audio clock
 ## This is important because we generate it in the logic world, and then move it to a clock net with a BUFG
 create_generated_clock -name clk_audio -source [get_pins lisa_hdmi_output/hdmi_clock_generator/CLKOUT3] -period 20833.333 [get_pins lisa_hdmi_output/buf_audio/O]
@@ -362,58 +366,3 @@ set_property -dict {PACKAGE_PIN B7 IOSTANDARD LVCMOS33} [get_ports {SPEED_SEL[0]
 set_property -dict {PACKAGE_PIN C5 IOSTANDARD LVCMOS33} [get_ports {SPEED_SEL[1]}]
 set_property -dict {PACKAGE_PIN C6 IOSTANDARD LVCMOS33} [get_ports CPU_ROM_SEL]
 set_property -dict {PACKAGE_PIN F5 IOSTANDARD LVCMOS33} [get_ports IO_ROM_SEL]
-
-connect_debug_port u_ila_0/probe3 [get_nets [list io_board/DIS]]
-
-
-
-
-
-connect_debug_port u_ila_0/probe0 [get_nets [list {io_board/PD_out[0]} {io_board/PD_out[1]} {io_board/PD_out[2]} {io_board/PD_out[3]} {io_board/PD_out[4]} {io_board/PD_out[5]} {io_board/PD_out[6]} {io_board/PD_out[7]}]]
-connect_debug_port u_ila_0/probe6 [get_nets [list {io_board/pp_via/addr[0]} {io_board/pp_via/addr[1]} {io_board/pp_via/addr[2]} {io_board/pp_via/addr[3]}]]
-connect_debug_port u_ila_0/probe8 [get_nets [list {io_board/SD_in[0]} {io_board/SD_in[1]} {io_board/SD_in[2]} {io_board/SD_in[3]} {io_board/SD_in[4]} {io_board/SD_in[5]} {io_board/SD_in[6]} {io_board/SD_in[7]}]]
-connect_debug_port u_ila_0/probe9 [get_nets [list _BSY]]
-connect_debug_port u_ila_0/probe10 [get_nets [list io_board/_CMD]]
-connect_debug_port u_ila_0/probe11 [get_nets [list io_board/_CMD_ungated]]
-connect_debug_port u_ila_0/probe12 [get_nets [list io_board/_PARITY]]
-connect_debug_port u_ila_0/probe13 [get_nets [list _ProFile_EN]]
-connect_debug_port u_ila_0/probe14 [get_nets [list io_board/_ProFile_EN]]
-connect_debug_port u_ila_0/probe15 [get_nets [list io_board/_PSTRB]]
-connect_debug_port u_ila_0/probe17 [get_nets [list io_board/DR_W]]
-connect_debug_port u_ila_0/probe18 [get_nets [list io_board/OCD]]
-connect_debug_port u_ila_0/probe19 [get_nets [list io_board/OCD_ungated]]
-connect_debug_port u_ila_0/probe20 [get_nets [list io_board/PR_W_ungated]]
-
-
-
-connect_debug_port u_ila_0/probe12 [get_nets [list cpu_board/E_either_edge_logic]]
-connect_debug_port u_ila_0/probe16 [get_nets [list cpu_board/VIDEO_prev]]
-
-
-connect_debug_port u_ila_0/probe5 [get_nets [list {cpu_board/Q_counter[0]} {cpu_board/Q_counter[1]} {cpu_board/Q_counter[2]} {cpu_board/Q_counter[3]}]]
-
-
-connect_debug_port u_ila_0/probe4 [get_nets [list cpu_board/_CMUX_reg_n_0]]
-connect_debug_port u_ila_0/probe9 [get_nets [list cpu_board/CPUC1_reg_n_0]]
-connect_debug_port u_ila_0/probe10 [get_nets [list cpu_board/E_either_edge_logic]]
-connect_debug_port u_ila_0/probe14 [get_nets [list cpu_board/READ]]
-connect_debug_port u_ila_0/probe15 [get_nets [list cpu_board/VIDEO_prev]]
-
-
-
-
-
-
-
-
-
-connect_debug_port u_ila_0/probe2 [get_nets [list {cpu_board/_T[0]} {cpu_board/_T[1]} {cpu_board/_T[2]} {cpu_board/_T[3]} {cpu_board/_T[4]} {cpu_board/_T[5]} {cpu_board/_T[6]} {cpu_board/_T[7]}]]
-
-
-
-connect_debug_port u_ila_0/probe0 [get_nets [list {io_board/D_out_KBD_VIA[0]} {io_board/D_out_KBD_VIA[1]} {io_board/D_out_KBD_VIA[2]} {io_board/D_out_KBD_VIA[3]} {io_board/D_out_KBD_VIA[4]} {io_board/D_out_KBD_VIA[5]} {io_board/D_out_KBD_VIA[6]} {io_board/D_out_KBD_VIA[7]}]]
-connect_debug_port u_ila_0/probe1 [get_nets [list {io_board/IO_D[0]} {io_board/IO_D[1]} {io_board/IO_D[2]} {io_board/IO_D[3]} {io_board/IO_D[4]} {io_board/IO_D[5]} {io_board/IO_D[6]} {io_board/IO_D[7]}]]
-connect_debug_port u_ila_0/probe6 [get_nets [list io_board/_NMI_COP]]
-connect_debug_port u_ila_0/probe8 [get_nets [list io_board/CS_KBD_VIA]]
-connect_debug_port u_ila_0/probe11 [get_nets [list io_board/KBIR]]
-

@@ -33,14 +33,26 @@ module Lite_Adapter(
     // The Lisa sets the PWM value by shifting bits into the shift register on PH0, clocked by MT
     // The counter runs at 5MHz, and the PWM output is high when the shift register value is greater than or equal to the counter value
 
-    // First do the shift register; reset it on system reset and shift in PH0 on the rising edge of MT
+    // Make sure to synchronize both MT and PH0 to the clk (C5M) domain to avoid any metastability issues
+    logic MT_int, PH0_int, MT_sync, PH0_sync;
+    always_ff @(posedge clk) begin
+        MT_int <= MT;
+        PH0_int <= PH0;
+        MT_sync <= MT_int;
+        PH0_sync <= PH0_int;
+    end
+
+     // Now handle the shift register; reset it on system reset and shift in PH0 on the rising edge of MT
     logic [7:0] shiftreg;
-    always_ff @(posedge MT, posedge rst) begin
+    logic MT_prev;
+    always_ff @(posedge clk, posedge rst) begin
         if (rst) begin
             shiftreg <= 8'b0;
-        end else begin
-            shiftreg <= {shiftreg[6:0], PH0};
+            MT_prev <= 1'b0;
+        end else if (MT_sync && !MT_prev) begin
+            shiftreg <= {shiftreg[6:0], PH0_sync};
         end
+        MT_prev <= MT;
     end
 
     // And now do the 8-bit counter running at 5MHz; reset it on system reset and increment it on the rising edge of clk
