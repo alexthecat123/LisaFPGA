@@ -245,7 +245,7 @@ module top(
     assign _INT1 = 1'b1;
     assign _INT2 = 1'b1;
 
-    logic lisa_dotck;
+    logic DOTCK;
     logic sysclk_ibuf;
 
     IBUF sysclk_ibuf_buffer (
@@ -265,7 +265,9 @@ module top(
     logic SCCCK_2x;
     logic C5M_ungated;
     logic C5M;
-    // As well as a 12MHz clock for USB
+    // This is the main Lisa dot clock before we gate it with the power switch; it can be anywhere from 20MHz to 75MHz
+    logic DOTCK_ungated;
+    // And here's a 12MHz clock for USB
     logic usbclk;
 
     // We use an MMCM for this, but there's a catch
@@ -339,7 +341,7 @@ module top(
         .I0(dotck_A), // 20M/40M group
         .I1(dotck_B), // 60M/80M group
         .S(~SPEED_SEL_dotck[1]), // Select between the two groups, once again inverted to match the PCB switch labeling
-        .O(lisa_dotck_ungated) // Final DOTCK output
+        .O(DOTCK_ungated) // Final DOTCK output
     );
 
     //assign COPCK = rpio_24_r;
@@ -369,17 +371,17 @@ module top(
 
     `ifdef SIMULATION
         // In simulation, we want the Lisa to always be on, so we don't gate the clocks
-        assign lisa_dotck = lisa_dotck_ungated;
+        assign DOTCK = DOTCK_ungated;
         assign C16M = C16M_ungated;
         assign SCCCK = SCCCK_ungated;
         assign C5M = C5M_ungated;
     `else
         // In real life, we gate the clocks based on the ON signal
         // Use BUFGCE primitives for this; clocks shouldn't be routed through regular muxes
-        BUFGCE lisa_dotck_bufg (
-            .I(lisa_dotck_ungated), // Input clock
+        BUFGCE DOTCK_bufg (
+            .I(DOTCK_ungated), // Input clock
             .CE(ON), // Clock enable (1 = pass clock through, 0 = hold low)
-            .O(lisa_dotck) // Output clock
+            .O(DOTCK) // Output clock
         );
         BUFGCE C16M_bufg (
             .I(C16M_ungated),
@@ -411,19 +413,20 @@ module top(
     logic ON_prev;
     logic ON_rising;
 
-    always_ff @(posedge COPCK) begin
+    always_ff @(posedge COPCK_2x) begin
         ON_prev <= ON;
         _RSTSW_int <= _RSTSW & ~(ON & ~ON_prev); // Detect the rising edge of ON and use that plus the reset switch to reset the system
     end
 
     // We need a version of _RSTSW_int synchronized into the DOTCK domain for the CPU board, so do that now
-    logic _RSTSW_dotck_int, _RSTSW_dotck;
-    always_ff @(posedge lisa_dotck_ungated) begin
+    (* ASYNC_REG = "TRUE" *) logic _RSTSW_dotck_int, _RSTSW_dotck;
+    always_ff @(posedge DOTCK_ungated) begin
         _RSTSW_dotck_int <= _RSTSW_int;
         _RSTSW_dotck <= _RSTSW_dotck_int;
     end
 
     // Note the inversion of _VSYNC and VID here; the LS132 on the motherboard does this
+    logic _VSYNC_int;
     assign _VSYNC = ~_VSYNC_int;
     assign VID = ~VID_int;
     // 1 means don't invert, 0 means invert
@@ -445,7 +448,7 @@ module top(
         HDMI_Interface lisa_hdmi_output(
             .sysclk(sysclk_ibuf),
             ._reset(_RESET),
-            .DOTCK(lisa_dotck),
+            .DOTCK(DOTCK),
             .framerate_sel(GPIO[0]), // 0 for 1080p30, 1 for 1080p60
             .VA_overflow(VA_overflow), // Replaces VSYNC; better reflects the VSYNC time which is actually longer than _VSYNC
             ._clr_vid_clk(_clr_vid_clk), // Replaces _HSYNC; better reflects the HSYNC time which is actually shorter than _HSYNC
@@ -522,7 +525,7 @@ module top(
         .A17(A17),
         .A18(A18),
         .A19(A19),
-        .DOTCK(lisa_dotck),
+        .DOTCK(DOTCK),
         .MREAD(MREAD),
         ._CAS(_CAS),
         ._RAS(_RAS),
@@ -754,11 +757,10 @@ module top(
     // Before we do anything else related to USB though, we need to mess with our reset signal a bit
     // The regular reset signal is generated in the DOTCK domain, but we need it in the usbclk domain
     // So we'll create a synchronized version of it here
-    logic usbrst_sync;
-    logic usbrst;
+    (* ASYNC_REG = "TRUE" *) logic usbrst_int, usbrst;
     always_ff @(posedge usbclk) begin
-        usbrst_sync <= _RESET;
-        usbrst <= usbrst_sync;
+        usbrst_int <= _RESET;
+        usbrst <= usbrst_int;
     end
 
     // We also need IOBUFs for the USB data lines since they're bidirectional
@@ -795,7 +797,7 @@ module top(
     logic [7:0] usb_key_modifiers_port0;
     logic [7:0] usb_key1_port0;
     // Instantiate the USB HID host module for the first USB port (port 0, previously hard-coded to be for the mouse)
-    `ifndef simulation
+    `ifndef SIMULATION
         usb_hid_host usb_port0 (
             .usbclk(usbclk), // 12MHz clock
             .usbrst_n(usbrst), // Active-low reset
@@ -849,7 +851,7 @@ module top(
     logic [7:0] usb_key_modifiers_port1;
     logic [7:0] usb_key1_port1;
     // Instantiate the USB HID host module for the second USB port (port 1, previously hard-coded to be for the keyboard)
-    `ifndef simulation
+    `ifndef SIMULATION
         usb_hid_host usb_port1 (
             .usbclk(usbclk), // 12MHz clock
             .usbrst_n(usbrst), // Active-low reset
@@ -1189,7 +1191,7 @@ module top(
         .SCCCK(SCCCK),
         .E_pos_phase(E_pos_phase),
         .E_neg_phase(E_neg_phase),
-        .DOTCK(lisa_dotck),
+        .DOTCK(DOTCK),
         .E_either_edge(E_either_edge),
         .VC(VC),
         .SCC_C4M(SCC_C4M),
@@ -1257,7 +1259,7 @@ module top(
             .A20(A20),
             .VA9(VA9B),
             .VA10(VA10B),
-            .DOTCK(lisa_dotck),
+            .DOTCK(DOTCK),
             ._UDS(_UDS),
             ._LDS(_LDS),
             ._CAS(_CAS),
@@ -1300,7 +1302,7 @@ module top(
             .A19(A19),
             .A20(A20),
             .RAM_SEL(RAM_SEL),
-            .DOTCK(lisa_dotck),
+            .DOTCK(DOTCK),
             ._UDS(_UDS),
             ._LDS(_LDS),
             ._CAS(_CAS),

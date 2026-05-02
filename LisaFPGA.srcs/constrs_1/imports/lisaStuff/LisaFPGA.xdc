@@ -3,7 +3,6 @@
 ## As well as some other stuff, like this allowing of combinatorial loops on certain nets
 ## Which we have to do thanks to the Lisa's architecture
 set_property ALLOW_COMBINATORIAL_LOOPS true [get_nets {cpu_board/BD_out[*]}]
-set_property ALLOW_COMBINATORIAL_LOOPS true [get_nets cpu_board/_BUST_latched]
 set_property ALLOW_COMBINATORIAL_LOOPS true [get_nets {cpu_board/latched_MMU_address[13]}]
 set_property ALLOW_COMBINATORIAL_LOOPS true [get_nets {cpu_board/latched_MMU_address[14]}]
 set_property ALLOW_COMBINATORIAL_LOOPS true [get_nets {cpu_board/latched_MMU_address[15]}]
@@ -28,18 +27,22 @@ set_false_path -to [get_cells lisa_hdmi_output/_reset_hdmi_int_reg]
 ## False-path into the first stage of the I/O board reset synchronizer
 set_false_path -to [get_cells io_board/_RESET_int_reg]
 ## False-path into the first stage of the USB reset synchronizer
-set_false_path -to [get_cells usbrst_sync_reg]
+set_false_path -to [get_cells usbrst_int_reg]
 ## False-path into the first stage of the I/O board AS synchronizer
-set_false_path -to [get_cells io_board/_AS_sync_reg]
+set_false_path -to [get_cells io_board/_AS_int_reg]
 ## False-path into the INTIO synchronizer on the I/O board; ignore it because the synchronizer once again handles the DOTCK-to-C16M CDC
-set_false_path -to [get_cells io_board/_INTIO_sync_reg]
+set_false_path -to [get_cells io_board/_INTIO_int_reg]
 
 ## Here's another false path for the system ON signal
 ## This goes into the DOTCK BUFGCTRL and serves as the clock enable
 ## The signal comes from the COP, but the timing analyzer thinks it's heading to the DOTCK domain, when in reality it's just enabling the clock
-set_false_path -to [get_pins lisa_dotck_bufg/CE0]
+set_false_path -to [get_pins DOTCK_bufg/CE0]
 ## Same for C16M
 set_false_path -to [get_pins C16M_bufg/CE0]
+## And C5M
+set_false_path -to [get_pins C5M_bufg/CE0]
+## And SCCCK
+set_false_path -to [get_pins SCCCK_bufg/CE0]
 
 ## Another ON-related false path: the blank_video signal that goes into the HDMI_Interface
 ## This blanks the video when Lisa is off and is literally just the ON signal, but once again we have a CDC issue between COPCK and clk_pixel
@@ -53,13 +56,8 @@ set_false_path -through [get_nets io_board/cop421/core_b/io_g_b/_NMI_COP] -to [g
 # The interrupt line going from the floppy disk controller to the 68K has the same problem; it crosses from the C16M to the DOTCK domain
 set_false_path -through [get_cells {io_board/lower_FDC_latch/Q_reg[7]}] -to [get_cells {cpu_board/M68K/rIpl_reg[*]}]
 
-## This false path is for the _RSTSW signal going to the CPU board; it consists of both the RSTSW and the rising edge of ON
-## So obviously the CDC of ON is the problem here; I have a synchronizer to fix it though, so we just need to declare the false path here
-set_false_path -through [get_nets cpu_board/_RSTSW] -to [get_cells {cpu_board/rst_counter_reg[*]}]
-## Another one for the same _RSTSW signal, just to a different destination on the CPU board
-set_false_path -through [get_nets cpu_board/_RSTSW] -to [get_cells cpu_board/fast_reset_reg]
-## And another...
-set_false_path -through [get_nets cpu_board/_RSTSW] -to [get_cells cpu_board/_RSTHLT_555_reg]
+## This RSTSW-related false path goes from the COPCK_2x to the DOTCK domain; RSTSW is gated with ON in a FF which is why it's in COPCK at all
+set_false_path -to [get_cells _RSTSW_dotck_int_reg]
 
 ## Here's a false path between the 6522 and the COP for our extended-length DDRA data strobe signal
 ## I'm synchronizing this signal into the COPCK_2x domain, so we just need to declare a false path into the synchronizer
@@ -90,24 +88,13 @@ set_property LOC MMCME2_ADV_X0Y0 [get_cells primary_clock_divider/inst/mmcm_adv_
 
 ## We also need to declare some false paths related to our clock muxing
 ## This is because only one of the clocks is actually active at a time, so timing analysis between the 4 dot clocks is pointless
-set_false_path -from [get_clocks dotck_80M_dotck_mmcm] -to [get_clocks dotck_20M_dotck_mmcm]
-set_false_path -from [get_clocks dotck_80M_dotck_mmcm] -to [get_clocks dotck_40M_dotck_mmcm]
-set_false_path -from [get_clocks dotck_80M_dotck_mmcm] -to [get_clocks dotck_60M_dotck_mmcm]
-set_false_path -from [get_clocks dotck_20M_dotck_mmcm] -to [get_clocks dotck_80M_dotck_mmcm]
-set_false_path -from [get_clocks dotck_20M_dotck_mmcm] -to [get_clocks dotck_40M_dotck_mmcm]
-set_false_path -from [get_clocks dotck_20M_dotck_mmcm] -to [get_clocks dotck_60M_dotck_mmcm]
-set_false_path -from [get_clocks dotck_40M_dotck_mmcm] -to [get_clocks dotck_80M_dotck_mmcm]
-set_false_path -from [get_clocks dotck_40M_dotck_mmcm] -to [get_clocks dotck_20M_dotck_mmcm]
-set_false_path -from [get_clocks dotck_40M_dotck_mmcm] -to [get_clocks dotck_60M_dotck_mmcm]
-set_false_path -from [get_clocks dotck_60M_dotck_mmcm] -to [get_clocks dotck_80M_dotck_mmcm]
-set_false_path -from [get_clocks dotck_60M_dotck_mmcm] -to [get_clocks dotck_20M_dotck_mmcm]
-set_false_path -from [get_clocks dotck_60M_dotck_mmcm] -to [get_clocks dotck_40M_dotck_mmcm]
+## Instead of a billion false path constraints, we can instead just make an exclusive clock group for the 4 DOTCKs
+## This is just a single line, and tells Vivado that these clocks are all mutually exclusive and should be analyzed as such
+set_clock_groups -name exclusive_dotcks -logically_exclusive -group dotck_20M_dotck_mmcm -group dotck_40M_dotck_mmcm -group dotck_60M_dotck_mmcm -group dotck_80M_dotck_mmcm
 
-## It's also impossible to go between the 1080p30 and 1080p60 pixel clocks (and x5 pixel clocks), so set false paths for them too
-set_false_path -from [get_clocks clk_pixel_1080p30] -to [get_clocks clk_pixel_1080p60]
-set_false_path -from [get_clocks clk_pixel_1080p60] -to [get_clocks clk_pixel_1080p30]
-set_false_path -from [get_clocks clk_pixel_x5_1080p30] -to [get_clocks clk_pixel_x5_1080p60]
-set_false_path -from [get_clocks clk_pixel_x5_1080p60] -to [get_clocks clk_pixel_x5_1080p30]
+## It's also impossible to go between the 1080p30 and 1080p60 pixel clocks and the x5 pixel clocks, so make exclusive clock groups for them too
+set_clock_groups -name exclusive_pixel_clks -logically_exclusive -group clk_pixel_1080p30 -group clk_pixel_1080p60
+set_clock_groups -name exclusive_5x_pixel_clks -logically_exclusive -group clk_pixel_x5_1080p30 -group clk_pixel_x5_1080p60
 
 ## Another HDMI-related thing: we need to set false paths for the select signals going into the HDMI clock muxes
 ## We don't care about the timing on this signal since it's only used to select which clock goes to the HDMI output
@@ -124,8 +111,8 @@ set_false_path -to [get_cells lisa_lite/MT_int_reg]
 
 ## Create a constraint for our 48KHz audio clock
 ## This is important because we generate it in the logic world, and then move it to a clock net with a BUFG
-## The divide_by is saying that we divide the source clock (which is the 74.25MHz 1080p30 clock) by 1547 to get our 48KHz generated clock
-create_generated_clock -name clk_audio -source [get_pins lisa_hdmi_output/hdmi_clock_generator/clk_pixel_1080p30] -divide_by 1547 [get_pins lisa_hdmi_output/buf_audio/O]
+## The divide_by is saying that we divide the source clock (which is the 74.25MHz 1080p30 clock) by 1546 to get our 48KHz generated clock
+create_generated_clock -name clk_audio -source [get_pins lisa_hdmi_output/hdmi_clock_generator/clk_pixel_1080p30] -divide_by 1546 [get_pins lisa_hdmi_output/buf_audio/O]
 
 ## And a create_clock constraint for our main 125MHz sysclk signal
 create_clock -period 8.000 -name sys_clk_pin -waveform {0.000 4.000} -add [get_ports sysclk]

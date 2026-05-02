@@ -129,7 +129,7 @@ module IO_board(
     // Before we do anything else, let's take the _SYSTEM_RESET signal and turn it into a _RESET signal for the I/O board
     // _SYSTEM_RESET is in the DOTCK clock domain, but we need _RESET to be in the C16M clock domain
     // So we'll use a two-stage synchronizer to avoid metastability issues
-    logic _RESET_int, _RESET;
+    (* ASYNC_REG = "TRUE" *) logic _RESET_int, _RESET;
     always_ff @(posedge C16M) begin
         _RESET_int <= _RESET_SYSTEM;
         _RESET <= _RESET_int;
@@ -283,15 +283,15 @@ module IO_board(
     always_ff @(posedge C16M) begin
         // If the 68K is trying to access the RAM, then keep the select low for as long as it's selecting it
         if (~FDC_RAM_addr_select) begin
-            _FDC_RAM_CS_muxed = 1'b0;
+            _FDC_RAM_CS_muxed <= 1'b0;
         // If the 68K just stopped accessing the RAM, then unselect it for one sysclk cycle to allow a falling edge again
         // If we don't do this, then CS will just stay low when the 6504 regains control and tries to access RAM itself
         // And since the 6504 is trying to access a different address, the RAM needs to see a falling edge on CS again to latch the new address
         end else if (~FDC_RAM_addr_select_prev && FDC_RAM_addr_select) begin
-            _FDC_RAM_CS_muxed = 1'b1;
+            _FDC_RAM_CS_muxed <= 1'b1;
         // Otherwise, just forward the 6504's chip select signal directly to the RAM
         end else begin
-            _FDC_RAM_CS_muxed = _FDC_RAM_CS;
+            _FDC_RAM_CS_muxed <= _FDC_RAM_CS;
         end
     end
 
@@ -595,30 +595,28 @@ module IO_board(
         _DTACK_FF_1_output = 1'b1;
     end
 
-    logic _AS_int;
-    logic _AS_sync;
     // We're about to use AS in an always_ff block, so let's synchronize it to C16M first to avoid metastability
+    (* ASYNC_REG = "TRUE" *) logic _AS_int, _AS_sync;
     always_ff @(posedge C16M) begin
-        _AS_sync <= _AS;
-        _AS_int <= _AS_sync;
+        _AS_int <= _AS;
+        _AS_sync <= _AS_int;
     end
 
     // We need to synchronize _INTIO too since it's also used in the same always_ff block
-    logic _INTIO_int;
-    logic _INTIO_sync;
+    (* ASYNC_REG = "TRUE" *) logic _INTIO_int, _INTIO_sync;
     always_ff @(posedge C16M) begin
-        _INTIO_sync <= _INTIO;
-        _INTIO_int <= _INTIO_sync;
+        _INTIO_int <= _INTIO;
+        _INTIO_sync <= _INTIO_int;
     end
 
     always_ff @(posedge C16M) begin
-        if (_AS_int) begin
+        if (_AS_sync) begin
             // Original design was async preset on deasserted AS, but we do sync preset to avoid metastability
             _DTACK_FF_1_output <= 1'b1;
         // Otherwise, set or clear based on INTIO, A12, and DIS
         // But only if the clock enable for rising edge of FDC_counter[0] is set
         end else if (FDC_counter_clock_enables_rising[0]) begin
-            if (!_INTIO_int && !A[12] && !DIS) begin
+            if (!_INTIO_sync && !A[12] && !DIS) begin
                 _DTACK_FF_1_output <= 1'b0;
             end else begin
                 _DTACK_FF_1_output <= 1'b1;
@@ -636,7 +634,7 @@ module IO_board(
     assign _PHI2 = ~FDC_counter[2];
     // Clock the FF on C16M to avoid metastability; we'll use clock enables to simulate the rising edge of _PHI2
     always_ff @(posedge C16M) begin
-        if (_AS_int) begin
+        if (_AS_sync) begin
             // Original design was async preset on deasserted AS, but we do sync preset to avoid metastability
             FDC_RAM_addr_select <= 1'b1;
         // D input is output of the first flop
@@ -1201,6 +1199,7 @@ module IO_board(
     logic READ_ACK_COP_int;
     logic ca2_oe;
     logic [7:0] L_COP_out_int;
+    logic [7:0] KBD_via_DDRA;
 
     // And now we instantiate the chip
     via6522 kbd_via(
@@ -1267,7 +1266,7 @@ module IO_board(
     end
 
     // Next, synchronize this signal into the COPCK_2x domain
-    logic KBD_via_DDRA_extended_int, KBD_via_DDRA_extended_sync;
+    (* ASYNC_REG = "TRUE" *) logic KBD_via_DDRA_extended_int, KBD_via_DDRA_extended_sync;
     always_ff @(posedge COPCK_2x) begin
         KBD_via_DDRA_extended_int <= KBD_via_DDRA_extended;
         KBD_via_DDRA_extended_sync <= KBD_via_DDRA_extended_int;

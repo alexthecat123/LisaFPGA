@@ -38,12 +38,6 @@ module usb_mouse_interface(
     logic signed [7:0] mouse_dx;
     logic signed [7:0] mouse_dy;
 
-    //localparam int ACCUM_SHIFT = 4;   // 16 sub-pixels per quadrature step
-
-    // High-resolution accumulators
-    //logic signed [15:0] accum_x;
-    //logic signed [15:0] accum_y;
-
     // Now latch the button states on report
     always_ff @(posedge usbclk, negedge usbrst) begin
         // On reset, clear all the latched values
@@ -68,6 +62,11 @@ module usb_mouse_interface(
     // Middle and right buttons aren't connected on the Lisa, so just leave them low to tell the Lisa that the mouse is plugged in
     assign M[0] = 1'b0;
     assign M[3] = 1'b0;
+
+
+    // Most of the stuff from here down was written by someone else; not me
+    // I was really struggling with getting the USB mouse scaling to feel good, so someone sent me this, and it just worked
+    // So I'm not gonna mess with it and risk breaking anything
 
     // -------------------------------------------------------------------------
     // Internal: movement accumulators
@@ -114,7 +113,7 @@ module usb_mouse_interface(
        end else begin
             // Accumulate new deltas           
             if (x_pending && (divcnt == 13'd6000) && new_delta) begin
-                x_accum <= x_accum > 16'sd0 ? x_accum - 16'sd1 + mouse_dx : x_accum <= x_accum + 16'sd1 + mouse_dx;
+                x_accum <= x_accum > 16'sd0 ? x_accum - 16'sd1 + mouse_dx : x_accum + 16'sd1 + mouse_dx;
             end
             else if (x_pending && (divcnt == 13'd6000)) begin
                 x_accum <= x_accum > 16'sd0 ? x_accum - 16'sd1 : x_accum + 16'sd1;
@@ -124,7 +123,7 @@ module usb_mouse_interface(
             end
             // Y accumulation
             if (y_pending && (divcnt == 13'd6000) && new_delta) begin
-                y_accum <= y_accum > 16'sd0 ? y_accum - 16'sd1 + mouse_dy : y_accum <= y_accum + 16'sd1 + mouse_dy;
+                y_accum <= y_accum > 16'sd0 ? y_accum - 16'sd1 + mouse_dy : y_accum + 16'sd1 + mouse_dy;
             end
             else if (y_pending && (divcnt == 13'd6000)) begin
                 y_accum <= y_accum > 16'sd0 ? y_accum - 16'sd1 : y_accum + 16'sd1;

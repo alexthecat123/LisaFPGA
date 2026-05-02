@@ -34,7 +34,7 @@ module Lite_Adapter(
     // The counter runs at 5MHz, and the PWM output is high when the shift register value is greater than or equal to the counter value
 
     // Make sure to synchronize both MT and PH0 to the clk (C5M) domain to avoid any metastability issues
-    logic MT_int, PH0_int, MT_sync, PH0_sync;
+    (* ASYNC_REG = "TRUE" *) logic MT_int, PH0_int, MT_sync, PH0_sync;
     always_ff @(posedge clk) begin
         MT_int <= MT;
         PH0_int <= PH0;
@@ -52,7 +52,7 @@ module Lite_Adapter(
         end else if (MT_sync && !MT_prev) begin
             shiftreg <= {shiftreg[6:0], PH0_sync};
         end
-        MT_prev <= MT;
+        MT_prev <= MT_sync;
     end
 
     // And now do the 8-bit counter running at 5MHz; reset it on system reset and increment it on the rising edge of clk

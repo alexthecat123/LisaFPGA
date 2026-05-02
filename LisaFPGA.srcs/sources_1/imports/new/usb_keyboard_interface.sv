@@ -30,6 +30,13 @@ module usb_keyboard_interface(
     output logic KBD_out
     );
 
+    // First, let's synchronize KBD_in to the usbclk domain to avoid metastability issues
+    (* ASYNC_REG = "TRUE" *) logic KBD_in_int, KBD_in_sync;
+    always_ff @(posedge usbclk) begin
+        KBD_in_int <= KBD_in;
+        KBD_in_sync <= KBD_in_int;
+    end
+
     // The latched versions of the key modifiers and key1
     logic [7:0] key_modifiers;
     logic [7:0] key1;
@@ -83,7 +90,6 @@ module usb_keyboard_interface(
 
     kbd_state_t kbd_state;
 
-    logic prev_kbd_in;
     logic [25:0] kbd_in_pulse_counter; // Counts how long KBD_in has been low
     logic [9:0] kbd_bit_timer; // Timer for sending bits (16us or 30us)
 
@@ -230,10 +236,10 @@ module usb_keyboard_interface(
     logic first_run;
 
     // Bit masks for the modifier keys
-    logic SHIFT_MASK = 8'h22; // Left and right shift
-    logic LEFT_OPTION_MASK = 8'h01; // Left option (mapped to the left control key)
-    logic RIGHT_OPTION_MASK = 8'h10; // Right option (mapped to the right control key)
-    logic APPLE_MASK = 8'h44; // Left Apple (mapped to left and right alt keys)
+    localparam logic [7:0] SHIFT_MASK = 8'h22; // Left and right shift
+    localparam logic [7:0] LEFT_OPTION_MASK = 8'h01; // Left option (mapped to the left control key)
+    localparam logic [7:0] RIGHT_OPTION_MASK = 8'h10; // Right option (mapped to the right control key)
+    localparam logic [7:0] APPLE_MASK = 8'h44; // Left Apple (mapped to left and right alt keys)
 
     typedef enum logic [6:0] {
         WAIT,
@@ -300,12 +306,12 @@ module usb_keyboard_interface(
                     HANDLE_SHIFT: begin
                         first_run <= 1'b0; // Clear the first run flag
                         // Check the shift key state
-                        if (((key_modifiers & 8'h22) != 8'd0) && (prev_shift_state == UP)) begin
+                        if (((key_modifiers & SHIFT_MASK) != 8'd0) && (prev_shift_state == UP)) begin
                             // If we end up here, then the shift key has just been pressed
                             lisa_keycode <= 8'h7E | 8'b10000000; // So send out the Lisa Shift keycode with bit 7 set
                             prev_shift_state <= DOWN;
                             sent_keycode <= 1'b1; // Set the flag to say we sent something
-                        end else if (((key_modifiers & 8'h22) == 8'd0) && (prev_shift_state == DOWN)) begin
+                        end else if (((key_modifiers & SHIFT_MASK) == 8'd0) && (prev_shift_state == DOWN)) begin
                             // Here's where we go if the shift key has just been released
                             lisa_keycode <= 8'h7E & 8'b01111111; // Send the keycode again with bit 7 cleared
                             prev_shift_state <= UP;
@@ -325,12 +331,12 @@ module usb_keyboard_interface(
                     HANDLE_LEFT_OPTION: begin
                         first_run <= 1'b0; // Clear the first run flag
                         // Check the left option key state
-                        if (((key_modifiers & 8'h01) != 8'd0) && (prev_left_option_state == UP)) begin
+                        if (((key_modifiers & LEFT_OPTION_MASK) != 8'd0) && (prev_left_option_state == UP)) begin
                             // Left option key pressed
                             lisa_keycode <= 8'h7C | 8'b10000000; // Lisa Left Option keycode with bit 7 set
                             prev_left_option_state <= DOWN;
                             sent_keycode <= 1'b1; // Set the flag to say we sent something
-                        end else if (((key_modifiers & 8'h01) == 8'd0) && (prev_left_option_state == DOWN)) begin
+                        end else if (((key_modifiers & LEFT_OPTION_MASK) == 8'd0) && (prev_left_option_state == DOWN)) begin
                             // Left option key released
                             lisa_keycode <= 8'h7C & 8'b01111111; // Lisa Left Option keycode with bit 7 cleared
                             prev_left_option_state <= UP;
@@ -348,12 +354,12 @@ module usb_keyboard_interface(
                     HANDLE_RIGHT_OPTION: begin
                         first_run <= 1'b0; // Clear the first run flag
                         // Check the right option key state
-                        if (((key_modifiers & 8'h10) != 8'd0) && (prev_right_option_state == UP)) begin
+                        if (((key_modifiers & RIGHT_OPTION_MASK) != 8'd0) && (prev_right_option_state == UP)) begin
                             // Right option key pressed
                             lisa_keycode <= 8'h4E | 8'b10000000; // Lisa Right Option keycode with bit 7 set
                             prev_right_option_state <= DOWN;
                             sent_keycode <= 1'b1; // Set the flag to say we sent something
-                        end else if (((key_modifiers & 8'h10) == 8'd0) && (prev_right_option_state == DOWN)) begin
+                        end else if (((key_modifiers & RIGHT_OPTION_MASK) == 8'd0) && (prev_right_option_state == DOWN)) begin
                             // Right option key released
                             lisa_keycode <= 8'h4E & 8'b01111111; // Lisa Right Option keycode with bit 7 cleared
                             prev_right_option_state <= UP;
@@ -371,12 +377,12 @@ module usb_keyboard_interface(
                     HANDLE_APPLE: begin
                         first_run <= 1'b0; // Clear the first run flag
                         // Check the Apple key state
-                        if (((key_modifiers & 8'h44) != 8'd0) && (prev_apple_state == UP)) begin
+                        if (((key_modifiers & APPLE_MASK) != 8'd0) && (prev_apple_state == UP)) begin
                             // Apple key pressed
                             lisa_keycode <= 8'h7F | 8'b10000000; // Lisa Apple keycode with bit 7 set
                             prev_apple_state <= DOWN;
                             sent_keycode <= 1'b1; // Set the flag to say we sent something
-                        end else if (((key_modifiers & 8'h44) == 8'd0) && (prev_apple_state == DOWN)) begin
+                        end else if (((key_modifiers & APPLE_MASK) == 8'd0) && (prev_apple_state == DOWN)) begin
                             // Apple key released
                             lisa_keycode <= 8'h7F & 8'b01111111; // Lisa Apple keycode with bit 7 cleared
                             prev_apple_state <= UP;
@@ -475,7 +481,7 @@ module usb_keyboard_interface(
                 IDLE: begin
                     KBD_out <= 1'b1; // Release KBD_out
                     // In the idle state, wait for KBD_in to go low
-                    if (!KBD_in) begin
+                    if (!KBD_in_sync) begin
                         // When it does, go to the WAIT_FOR_HIGH state
                         kbd_state <= WAIT_FOR_HIGH;
                         // And start counting how long KBD_in is low
@@ -485,7 +491,7 @@ module usb_keyboard_interface(
                 WAIT_FOR_HIGH: begin
                     // We're waiting for KBD_in to go high again to see what the Lisa wants
                     kbd_in_pulse_counter <= kbd_in_pulse_counter + 1;
-                    if (KBD_in) begin
+                    if (KBD_in_sync) begin
                         // KBD_in went high again, check how long it was low for
                         if (kbd_in_pulse_counter >= 26'd55000) begin
                             // KBD_in was low for about 5ms or more, Lisa is requesting a reset

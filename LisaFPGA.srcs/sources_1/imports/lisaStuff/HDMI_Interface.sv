@@ -96,7 +96,7 @@ module HDMI_Interface (
 
     // Synchronise the reset signal (from the DOTCK domain) to the HDMI pixel clock domain
     // Otherwise we have tons of metastability issues`
-    logic _reset_hdmi_int, _reset_hdmi;
+    (* ASYNC_REG = "TRUE" *) logic _reset_hdmi_int, _reset_hdmi;
     // We use a two-stage synchronizer here
     always_ff @(posedge clk_pixel) begin
         _reset_hdmi_int <= _reset;
@@ -104,7 +104,7 @@ module HDMI_Interface (
     end
 
     // We need to synchronize blank_video too; it's the ON signal, which is in the COPCK_2x domain
-    logic blank_video_int, blank_video_sync;
+    (* ASYNC_REG = "TRUE" *) logic blank_video_int, blank_video_sync;
     always_ff @(posedge clk_pixel) begin
         blank_video_int <= blank_video;
         blank_video_sync <= blank_video_int;
@@ -147,22 +147,31 @@ module HDMI_Interface (
     // So when TONE is high, output max_volume, when TONE is low, output 0
     // max_volume = (VC / 7) * 65535
     // So final output = TONE ? max_volume : 0
+    // Before we do any of that though, synchronize both VC and TONE to the audio clock domain to avoid metastability issues
+    (* ASYNC_REG = "TRUE" *) logic TONE_int, TONE_sync;
+    (* ASYNC_REG = "TRUE" *) logic [2:0] VC_int, VC_sync;
+    always_ff @(posedge clk_audio) begin
+        TONE_int <= TONE;
+        TONE_sync <= TONE_int;
+        VC_int <= VC;
+        VC_sync <= VC_int;
+    end
 
     // LOS's volume levels are 0 for off (duh), 3 for Soft, 4, 5, and 6 for the in between levels, and 7 for Loud
     // But then after you select it, it remaps it to 1-5 from the 3-7, not sure why, maybe it maps it back when a sound actually plays
     // MacWorks Plus uses 0 for volume slider levels 0 and 1, 1 for volume slider levels 2 and 3, 2 for volume slider levels 4 and 5, and 3 for volume slider levels 6 and 7
     // MWP never goes above 3 oddly enough
     logic [15:0] max_volume;
-    assign max_volume = (VC == 3'd0) ? 16'd0 :
-                        (VC == 3'd1) ? 16'd9362 :
-                        (VC == 3'd2) ? 16'd18724 :
-                        (VC == 3'd3) ? 16'd28086 :
-                        (VC == 3'd4) ? 16'd37448 :
-                        (VC == 3'd5) ? 16'd46810 :
-                        (VC == 3'd6) ? 16'd56172 :
+    assign max_volume = (VC_sync == 3'd0) ? 16'd0 :
+                        (VC_sync == 3'd1) ? 16'd9362 :
+                        (VC_sync == 3'd2) ? 16'd18724 :
+                        (VC_sync == 3'd3) ? 16'd28086 :
+                        (VC_sync == 3'd4) ? 16'd37448 :
+                        (VC_sync == 3'd5) ? 16'd46810 :
+                        (VC_sync == 3'd6) ? 16'd56172 :
                                        16'd65535;
     always_ff @(posedge clk_audio) begin
-        audio_sample_word <= TONE ? max_volume : 0; //-max_volume;
+        audio_sample_word <= TONE_sync ? max_volume : 0; //-max_volume;
     end
 
     logic [23:0] rgb = 24'd0;
