@@ -378,24 +378,44 @@ module top(
     `else
         // In real life, we gate the clocks based on the ON signal
         // Use BUFGCE primitives for this; clocks shouldn't be routed through regular muxes
+        // We also need to synchronize the ON signal to each clock domain before feeding it into each BUFGCE
+        (* ASYNC_REG = "TRUE" *) logic ON_int_dotck, ON_int_c16m, ON_int_sccck, ON_int_c5m;
+        (* ASYNC_REG = "TRUE" *) logic ON_sync_dotck, ON_sync_c16m, ON_sync_sccck, ON_sync_c5m;
+        always_ff @(posedge DOTCK_ungated) begin
+            ON_int_dotck <= ON;
+            ON_sync_dotck <= ON_int_dotck;
+        end
+        always_ff @(posedge C16M_ungated) begin
+            ON_int_c16m <= ON;
+            ON_sync_c16m <= ON_int_c16m;
+        end
+        always_ff @(posedge SCCCK_ungated) begin
+            ON_int_sccck <= ON;
+            ON_sync_sccck <= ON_int_sccck;
+        end
+        always_ff @(posedge C5M_ungated) begin
+            ON_int_c5m <= ON;
+            ON_sync_c5m <= ON_int_c5m;
+        end
+        // Now use the synchronized versions of ON as the clock enable signals for the BUFGCEs
         BUFGCE DOTCK_bufg (
             .I(DOTCK_ungated), // Input clock
-            .CE(ON), // Clock enable (1 = pass clock through, 0 = hold low)
+            .CE(ON_sync_dotck), // Clock enable (1 = pass clock through, 0 = hold low)
             .O(DOTCK) // Output clock
         );
         BUFGCE C16M_bufg (
             .I(C16M_ungated),
-            .CE(ON),
+            .CE(ON_sync_c16m),
             .O(C16M)
         );
         BUFGCE SCCCK_bufg (
             .I(SCCCK_ungated),
-            .CE(ON),
+            .CE(ON_sync_sccck),
             .O(SCCCK)
         );
         BUFGCE C5M_bufg (
             .I(C5M_ungated),
-            .CE(ON),
+            .CE(ON_sync_c5m),
             .O(C5M)
         );
         // This was the old and dumb way of doing things; it's a good thing I stopped doing it like this

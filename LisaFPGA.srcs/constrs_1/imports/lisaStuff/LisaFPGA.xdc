@@ -33,28 +33,37 @@ set_false_path -to [get_cells io_board/_AS_int_reg]
 ## False-path into the INTIO synchronizer on the I/O board; ignore it because the synchronizer once again handles the DOTCK-to-C16M CDC
 set_false_path -to [get_cells io_board/_INTIO_int_reg]
 
-## Here's another false path for the system ON signal
-## This goes into the DOTCK BUFGCTRL and serves as the clock enable
-## The signal comes from the COP, but the timing analyzer thinks it's heading to the DOTCK domain, when in reality it's just enabling the clock
-set_false_path -to [get_pins DOTCK_bufg/CE0]
+## Here are some more false paths for the system ON signal
+## These goes into the DOTCK BUFGCTRL and serves as the clock enables
+## The signals come from the COP, and then we synchronize them into the domains of their respective BUFGCTRLs
+## First up, do DOTCK
+set_false_path -to [get_cells ON_int_dotck_reg]
 ## Same for C16M
-set_false_path -to [get_pins C16M_bufg/CE0]
+set_false_path -to [get_cells ON_int_c16m_reg]
 ## And C5M
-set_false_path -to [get_pins C5M_bufg/CE0]
+set_false_path -to [get_cells ON_int_c5m_reg]
 ## And SCCCK
-set_false_path -to [get_pins SCCCK_bufg/CE0]
+set_false_path -to [get_cells ON_int_sccck_reg]
 
 ## Another ON-related false path: the blank_video signal that goes into the HDMI_Interface
 ## This blanks the video when Lisa is off and is literally just the ON signal, but once again we have a CDC issue between COPCK and clk_pixel
 ## There's a synchronizer on the HDMI_Interface side, but we still need to declare the false path to avoid timing violations
 set_false_path -to [get_cells lisa_hdmi_output/blank_video_int_reg]
 
-## Jeez, these COP-related signals sure suck; here's another false path from the COP
-## This is for the NMI that runs from the COP (COPCK_2x domain) to the 68K (DOTCK domain)
-set_false_path -through [get_nets io_board/cop421/core_b/io_g_b/_NMI_COP] -to [get_cells {cpu_board/M68K/rIpl_reg[*]}]
-
-# The interrupt line going from the floppy disk controller to the 68K has the same problem; it crosses from the C16M to the DOTCK domain
-set_false_path -through [get_cells {io_board/lower_FDC_latch/Q_reg[7]}] -to [get_cells {cpu_board/M68K/rIpl_reg[*]}]
+## Now do false paths for all of the interrupt signals that go to the CPU
+## We're properly synchronizing all of them on the CPU board
+set_false_path -to [get_cells cpu_board/_RSIR_int_reg]
+set_false_path -to [get_cells cpu_board/_INT0_int_reg]
+set_false_path -to [get_cells cpu_board/_INT1_int_reg]
+set_false_path -to [get_cells cpu_board/_INT2_int_reg]
+set_false_path -to [get_cells cpu_board/_KBIR_int_reg]
+## These next few signals don't feed directly into the interrupt encoder, but they're used to generate HPIR and IOIR_internal
+## So they indirectly feed in and also must be synchronized
+set_false_path -to [get_cells cpu_board/_NMI_int_reg]
+set_false_path -to [get_cells cpu_board/_HDER_latched_int_reg]
+set_false_path -to [get_cells cpu_board/_SFER_latched_int_reg]
+set_false_path -to [get_cells cpu_board/_IOIR_int_reg]
+set_false_path -to [get_cells cpu_board/_VTIR_int_reg]
 
 ## This RSTSW-related false path goes from the COPCK_2x to the DOTCK domain; RSTSW is gated with ON in a FF which is why it's in COPCK at all
 set_false_path -to [get_cells _RSTSW_dotck_int_reg]
@@ -64,9 +73,8 @@ set_false_path -to [get_cells _RSTSW_dotck_int_reg]
 set_false_path -to [get_cells io_board/KBD_via_DDRA_extended_int_reg]
 
 ## The CONT register on the I/O board is clocked by the DOTCK, but we read the contrast in the 1080p30/60 domain
-## We don't really care about this CDC violation though since worst case, there's a tiny video glitch for a pixel or two during a single frame
-## So declare a false path for it
-set_false_path -from [get_cells {io_board/CONT_reg[*]}] -to [get_cells {lisa_hdmi_output/rgb_reg[*]}]
+## We have a synchronizer for this, so we just need to declare a false path for it
+set_false_path -to [get_cells {lisa_hdmi_output/CONT_int_reg[*]}]
 
 ## There's an annoying DRC rule during implementation that gives us an error if we try to drive 3 or more MMCMs from one IBUF
 ## You can do it, but the MMCMs have to placed in certain places relative to the IBUF, which doesn't work out for us
@@ -97,13 +105,15 @@ set_clock_groups -name exclusive_pixel_clks -logically_exclusive -group clk_pixe
 set_clock_groups -name exclusive_5x_pixel_clks -logically_exclusive -group clk_pixel_x5_1080p30 -group clk_pixel_x5_1080p60
 
 ## Another HDMI-related thing: we need to set false paths for the select signals going into the HDMI clock muxes
-## We don't care about the timing on this signal since it's only used to select which clock goes to the HDMI output
-## And this will only be changed very occasionally by the user
-## Plus, it doesn't matter if it glitches and takes a few cycles to stabilize; who cares if a single frame gets corrupted during the switch
-set_false_path -to [get_pins lisa_hdmi_output/bufgmux_clk_pixel/CE0]
-set_false_path -to [get_pins lisa_hdmi_output/bufgmux_clk_pixel/CE1]
-set_false_path -to [get_pins lisa_hdmi_output/bufgmux_clk_pixel_x5/CE0]
-set_false_path -to [get_pins lisa_hdmi_output/bufgmux_clk_pixel_x5/CE1]
+## They're generated in the "user flipping switches" domain and we can't synchronize them to any of the pixel clock domains since they feed into the clock muxes themselves
+## So just declare false paths and call it there
+set_false_path -to [get_pins lisa_hdmi_output/bufgmux_clk_pixel/CE*]
+set_false_path -to [get_pins lisa_hdmi_output/bufgmux_clk_pixel_x5/CE*]
+
+## We do use the framerate select signals in some other places though, so they're fed through synchronizers in those cases
+## We need false paths for those too
+set_false_path -to [get_cells lisa_hdmi_output/framerate_sel_int_pixel_reg]
+set_false_path -to [get_cells lisa_hdmi_output/framerate_sel_int_pixel_x5_reg]
 
 ## Make some more false paths going into the Lite Adapter synchronizers for the PH0 and MT signals
 set_false_path -to [get_cells lisa_lite/PH0_int_reg]

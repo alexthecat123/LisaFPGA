@@ -171,9 +171,27 @@ module CPU_board(
     logic _HPIR;
     // We're going to need an internal version of the I/O interrupt signal that incorporates the CPU board's _IOIR input
     // We'll generate it later though
-    logic _IOIR_int;
+    logic _IOIR_internal;
+    // We can now go ahead and make the priority encoder that sends all of our interrupt sources to the CPU as IPL[2:0]
+    // But first, we need to synchronize all of our interrupts that aren't already synchronous to the DOTCK
+    // So that's _RSIR, _INT0, _INT1, _INT2, and _KBIR
+    // The only ones we don't need to do are HPIR and IOIR since they're synchronized when derived from their individual signals elsewhere in this file
+    (* ASYNC_REG = "TRUE" *) logic _RSIR_int, _INT0_int, _INT1_int, _INT2_int, _KBIR_int;
+    (* ASYNC_REG = "TRUE" *) logic _RSIR_sync, _INT0_sync, _INT1_sync, _INT2_sync, _KBIR_sync;
+    always_ff @(posedge DOTCK) begin
+        _RSIR_int <= _RSIR;
+        _INT0_int <= _INT0;
+        _INT1_int <= _INT1;
+        _INT2_int <= _INT2;
+        _KBIR_int <= _KBIR;
+        _RSIR_sync <= _RSIR_int;
+        _INT0_sync <= _INT0_int;
+        _INT1_sync <= _INT1_int;
+        _INT2_sync <= _INT2_int;
+        _KBIR_sync <= _KBIR_int;
+    end
     encoder_8to3_LS148 IRQ_encoder(
-        ._D({_HPIR, _RSIR, _INT0, _INT1, _INT2, _KBIR, _IOIR_int, _IOIR_int}),
+        ._D({_HPIR, _RSIR_sync, _INT0_sync, _INT1_sync, _INT2_sync, _KBIR_sync, _IOIR_internal, _IOIR_internal}),
         ._EI(1'b0),
         ._Q(_IPL)
     );
@@ -185,7 +203,8 @@ module CPU_board(
     logic _RSTHLT_555;
     logic fast_reset;
     logic _HALTOUT_CPU;
-    always_ff @(posedge DOTCK, negedge _RSTSW, negedge _HALTOUT_CPU) begin
+    logic _RSTOUT_CPU;
+    always_ff @(posedge DOTCK) begin
         // If the reset switch is being pressed, then clear the reset counter, and set _RSTHLT_555 low since we're now in reset
         // Same goes for if the CPU itself is requesting a halt; on the Lisa, this just leads to an immediate reset
         if (!_RSTSW || !_HALTOUT_CPU) begin
@@ -208,6 +227,8 @@ module CPU_board(
                 _RSTHLT_555 <= 1'b0;
             end
         end
+        // Reset is just the 555 reset/halt signal wire-ANDed (or just ANDed in our case) with the CPU RESET output
+        _RESET = _RSTHLT_555 & _RSTOUT_CPU;
     end
 
     // The system-wide halt signal is asserted if either the 555 halt or the CPU-generated halt is asserted
@@ -215,10 +236,6 @@ module CPU_board(
     // We do it with a plain old assign statement instead
     logic _HALT;
     assign _HALT = _RSTHLT_555 & _HALTOUT_CPU;
-
-    // Reset is a similar deal; it's just the 555 reset/halt signal wire-ANDed (or just ANDed in our case) with the CPU RESET output
-    logic _RSTOUT_CPU;
-    assign _RESET = _RSTHLT_555 & _RSTOUT_CPU;
 
 
     // Now to replicate the other function of the 555: the bus error timeout counter
@@ -427,7 +444,17 @@ module CPU_board(
     // _IOIR was originally open-collector, but for reasons described in IO_board.sv, we're making it a regular logic signal instead
     // So we need to combine the _IOIR signal coming from the I/O board with the stuff that can assert it on the CPU board
     // The CPU board asserts it if _VTIR is asserted (vertical sync interrupt), so we just AND that with the _IOIR input
-    assign _IOIR_int = _VTIR & _IOIR;
+    // But we need to make sure to synchronize _IOIR to DOTCK first so that _IOIR_internal is truly fully in the DOTCK domain
+    // I guess we really need to synchronize _VTIR too, given that it's in an always block that isn't clocked by DOTCK either
+    (* ASYNC_REG = "TRUE" *) logic _IOIR_int, _IOIR_sync;
+    (* ASYNC_REG = "TRUE" *) logic _VTIR_int, _VTIR_sync;
+    always_ff @(posedge DOTCK) begin
+        _IOIR_int <= _IOIR;
+        _IOIR_sync <= _IOIR_int;
+        _VTIR_int <= _VTIR;
+        _VTIR_sync <= _VTIR_int;
+        _IOIR_internal <= _VTIR_sync & _IOIR_sync;
+    end
 
     // Same idea for _BUST too
     // Unlike the others, there should never be a situation here where both signals are asserted at once, but account for it anyway
@@ -451,7 +478,19 @@ module CPU_board(
     assign BD_OE_int = _RBES ? 1'bz : 1'b1;
     // There are two more signals that are generated as by-products of the latch
     // One is _HPIR (high-priority interrupt), which fires if we get an NMI or either a hard or soft memory error
-    assign _HPIR = _NMI & _HDER_latched & _SFER_latched;
+    // As with _IOIR_internal a few lines ago, we need to synchronize both _NMI and HDER/SFER to DOTCK before we combine them to form HPIR
+    (* ASYNC_REG = "TRUE" *) logic _NMI_int, _NMI_sync;
+    (* ASYNC_REG = "TRUE" *) logic _HDER_latched_int, _HDER_latched_sync;
+    (* ASYNC_REG = "TRUE" *) logic _SFER_latched_int, _SFER_latched_sync;
+    always_ff @(posedge DOTCK) begin
+        _NMI_int <= _NMI;
+        _NMI_sync <= _NMI_int;
+        _HDER_latched_int <= _HDER_latched;
+        _HDER_latched_sync <= _HDER_latched_int;
+        _SFER_latched_int <= _SFER_latched;
+        _SFER_latched_sync <= _SFER_latched_int;
+        _HPIR <= _NMI_sync & _HDER_latched_sync & _SFER_latched_sync;
+    end
     // The other is the clock for the memory error address latch
     // The latch gets commanded to latch the address on every memory cycle, and stops as soon as we get a memory error
     // It won't start latching again until we read the current address from the latch to clear _HDER_latched and/or _SFER_latched

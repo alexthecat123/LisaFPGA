@@ -58,7 +58,19 @@ module HDMI_Interface (
         .I(clk_feedback_out),
         .O(clk_feedback_in)
     );
+    // Next, we need to synchronize our framerate selector signal into the pixel clock and pixel clock x5 domains so we can feed it to other parts of our design
+    (* ASYNC_REG = "TRUE" *) logic framerate_sel_int_pixel, framerate_sel_sync_pixel;
+    (* ASYNC_REG = "TRUE" *) logic framerate_sel_int_pixel_x5, framerate_sel_sync_pixel_x5;
+    always_ff @(posedge clk_pixel) begin
+        framerate_sel_int_pixel <= framerate_sel;
+        framerate_sel_sync_pixel <= framerate_sel_int_pixel;
+    end
+    always_ff @(posedge clk_pixel_x5) begin
+        framerate_sel_int_pixel_x5 <= framerate_sel;
+        framerate_sel_sync_pixel_x5 <= framerate_sel_int_pixel_x5;
+    end
     // Now instantiate two BUFGMUXes to mux the pixel clocks and the x5 pixel clocks
+    // DON'T use the synchronized framerate_sel here since they depend on the output of the BUFGMUX in the first place
     BUFGMUX bufgmux_clk_pixel (
         .I0(clk_pixel_1080p30),
         .I1(clk_pixel_1080p60),
@@ -87,7 +99,7 @@ module HDMI_Interface (
     // Finally, pick the video ID code sent to the HDMI interface based on our framerate
     logic [6:0] video_id_code;
     always_ff @(posedge clk_pixel) begin
-        if (framerate_sel == 1'b0) begin
+        if (framerate_sel_sync_pixel == 1'b0) begin
             video_id_code <= 7'd34; // Code 34 for 1080p30
         end else begin
             video_id_code <= 7'd16; // Code 16 for 1080p60
@@ -415,6 +427,13 @@ module HDMI_Interface (
     // So maybe make 0x11 full white and scale down from there, just so things are brighter on HDMI?
     // Unless I find some other OS that goes brighter of course!
 
+    // We need to synchronize CONT to the pixel clock domain before we can use it to adjust the brightness of the output
+    (* ASYNC_REG = "TRUE" *) logic [5:0] CONT_int, CONT_sync;
+    always_ff @(posedge clk_pixel) begin
+        CONT_int <= CONT;
+        CONT_sync <= CONT_int;
+    end
+
     // Now generate the RGB value
     always @(posedge clk_pixel) begin
         // Check the ROM revision; the active area of the frame depends on this
@@ -424,7 +443,7 @@ module HDMI_Interface (
                 // Figure out if the pixel is black or white, taking CONT into account
                 // No need to worry about INVID since it's already handled on the CPU board
                 // If the Lisa is off (blank_video), force black output
-                rgb <= blank_video_sync ? 24'h000000 : (pixel ? {(6'h3f - CONT), 2'b00, (6'h3f - CONT), 2'b00, (6'h3f - CONT), 2'b00} : 24'h000000);
+                rgb <= blank_video_sync ? 24'h000000 : (pixel ? {(6'h3f - CONT_sync), 2'b00, (6'h3f - CONT_sync), 2'b00, (6'h3f - CONT_sync), 2'b00} : 24'h000000);
             end else begin
                 // If we're outside the active area, output a dark gray border
                 rgb <= 24'h202020;
@@ -435,7 +454,7 @@ module HDMI_Interface (
                 // Figure out if the pixel is black or white, taking CONT into account
                 // No need to worry about INVID since it's already handled on the CPU board
                 // If the Lisa is off (blank_video), force black output
-                rgb <= blank_video_sync ? 24'h000000 : (pixel ? {(6'h3f - CONT), 2'b00, (6'h3f - CONT), 2'b00, (6'h3f - CONT), 2'b00} : 24'h000000);
+                rgb <= blank_video_sync ? 24'h000000 : (pixel ? {(6'h3f - CONT_sync), 2'b00, (6'h3f - CONT_sync), 2'b00, (6'h3f - CONT_sync), 2'b00} : 24'h000000);
             end else begin
                 // If we're outside the active area, output a dark gray border
                 rgb <= 24'h202020;

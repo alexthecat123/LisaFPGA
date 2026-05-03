@@ -1339,15 +1339,25 @@ module IO_board(
 
     // Last but not least, Page 5, from which we literally only need to implement one thing: the contrast latch
     // The original I/O board also had a DAC to convert the contrast to an analog voltage, but we have to do that externally (or over HDMI)
-    logic WCNT_prev;
+    // Before we implement the contrast latch itself, we need to synchronize the WCNT signal from the VIA and the contrast bits into the DOTCK domain
+    (* ASYNC_REG = "TRUE" *) logic WCNT_int, WCNT_sync;
+    (* ASYNC_REG = "TRUE" *) logic [5:0] CONT_int, CONT_sync;
+    always_ff @(posedge DOTCK) begin
+        WCNT_int <= WCNT;
+        WCNT_sync <= WCNT_int;
+        CONT_int <= SD_out[7:2];
+        CONT_sync <= CONT_int;
+    end
+    // Now do the actual contrast latch
+    logic WCNT_sync_prev;
     always_ff @(posedge DOTCK, negedge _RESET_SYSTEM) begin
         if (!_RESET_SYSTEM) begin
             CONT <= 6'b0; // On reset, set contrast to 0
         end else begin
-            if (WCNT && !WCNT_prev) begin
-                CONT <= SD_out[7:2]; // Otherwise, latch bits [7:2] of the SD bus from the PP VIA into CONT on the rising edge of WCNT
+            if (WCNT_sync && !WCNT_sync_prev) begin
+                CONT <= CONT_sync; // Otherwise, latch bits [7:2] of the SD bus from the PP VIA into CONT on the rising edge of WCNT
             end
-            WCNT_prev <= WCNT; // And keep track of the previous state of WCNT so we can detect rising edges
+            WCNT_sync_prev <= WCNT_sync; // And keep track of the previous state of WCNT so we can detect rising edges
         end
     end
 
