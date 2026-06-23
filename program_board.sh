@@ -223,7 +223,8 @@ if [[ ! -x "$CP210X_CFG_BIN" ]]; then
         linux) install_pkg_linux libusb-1.0-0-dev ;;
         macos) ensure_brew; install_pkg_macos libusb ;;
     esac
-    if [[ ! -d "$CP210X_CFG_DIR" ]]; then
+    if [[ ! -f "$CP210X_CFG_DIR/Makefile" ]]; then
+        rm -rf "$CP210X_CFG_DIR"
         git clone --depth=1 https://github.com/irrwisch1/cp210x-cfg.git "$CP210X_CFG_DIR"
     fi
     mkdir -p "$CP210X_CFG_DIR/build"
