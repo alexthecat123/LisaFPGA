@@ -1,0 +1,18 @@
+# LisaFPGA Desktop PCB Rev. 2 Changelog
+- Second prototype of the LisaFPGA board
+- Replaced FT2232 with FT232 for USB to JTAG due to supply chain and cost constraints
+- Fixed an issue where a pullup resistor on the keyboard jack overlapped with the footprint of U26
+- Swapped the backwards INT and EXT labels on the SPKR SEL jumper
+- Removed the power rail disconnect jumpers now that the power supplies are confirmed good
+- Swapped the R and B channels on the ESProFile status LED; they were backwards
+- Added a BOOT button to the ESProFile and ESFloppy ESP32s to prevent accidental bricking
+- Added a 12V switching regulator to avoid the need for external 12V power supplies and to avoid melting the speaker if one isn't connected
+- Removed the barrel jack now that 12V is generated onboard; the whole board is powered over USB-C
+- Replaced the FT232/FT2232's 93C46 EEPROM (which was too small) with the properly-sized 93C56
+- Upgraded the ESP32 SD card slots from SPI to SDIO
+- Replaced TXS0108EPWR bidirectional level shifters with 74HCT245s and 74LVC245s for unidirectional signals and BSS138-based shifters for bidirectional signals to fix oscillation problems with the TXS chips
+- Added a SCANLINES jumper for inserting artificial scanlines into the HDMI video output
+- Replaced all LED current-limiting resistors with 10K pots for brightness tuning
+- Added the R18 pullup to the FDC RDA line and the R47 pulldown to the SNS line; not sure how I missed these before
+- Replaced the USB KEYBOARD and USB MOUSE text with USB 1 and USB 2 now that either port can be used for either device
+- Added a 4-pin header below the Sony floppy header to allow connection of Twiggy drives with an additional breakout

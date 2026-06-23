@@ -76,7 +76,7 @@ I use [JLCPCB](https://jlcpcb.com/) for all of my PCB orders, and I'd highly rec
 Let's walk through the whole process now, for both the main LisaFPGA board and the Twiggy breakout (if applicable for you).
 
 ### LisaFPGA Main Board
-Go to [the JLCPCB site](https://jlcpcb.com/), click Order Now, and then click the Add Gerber File button. Select the Gerber files for the LisaFPGA board that you want to fabricate; this is going to be the zip file in the ```hardware/PCB vXXX/``` directory, where ```XXX``` is the version number of the board that you want to make. You probably want to pick the board with the latest version number!
+Go to [the JLCPCB site](https://jlcpcb.com/), click Order Now, and then click the Add Gerber File button. Select the Gerber files for the LisaFPGA board that you want to fabricate; this is going to be the zip file in the ```hardware/lisafpga_desktop/rev_X``` directory, where ```X``` is the revision number of the board that you want to make. You probably want to pick the board with the latest revision!
 
 Once you've uploaded the Gerbers, it should look like this:
 
@@ -108,7 +108,7 @@ Now hit Next and you'll see a preview of the bare board. I have no clue what the
 
 <img width="1728" height="925" alt="SCR-20260603-bbxu" src="https://github.com/user-attachments/assets/db68b64c-2fe8-4446-95df-70601f68d9af" />
 
-Go ahead and upload those two files as requested; they're both in the ```hardware/PCB vXXX/``` directory, with the BOM file literally having "BOM" in the name, and the CPL file having "Pick-And-Place" in the name. Once they're uploaded, hit the Process BOM & CPL button to move on.
+Go ahead and upload those two files as requested; they're both in the ```hardware/lisafpga_desktop/rev_X``` directory, with the BOM file literally having "bom" in the name, and the CPL file having "pick_and_place" in the name. Once they're uploaded, hit the Process BOM & CPL button to move on.
 
 Once the BOM and pick-and-place files have been processed, you'll be presented with a list of all of the components on the board, how many are required for your order, their total cost, and whether or not their stock of any part is too low (inventory shortage).
 
@@ -145,7 +145,7 @@ If you're one of the lucky few people who happens to own a set of Twiggy drives 
 
 Note that the Twiggy breakouts are currently untested since I'm not lucky enough to own any Twiggy drives. But I'll be borrowing someone's Lisa 1 in the near future to get some test data and fix anything that's broken. Just keep in mind that the current board revision may not work; use it at your own risk!
 
-The process is nearly identical to the process for the main LisaFPGA boards, except that you should use the files in ```hardware/Twiggy Breakout vXXX```, where XXX is the latest version number that you can find in the ```hardware``` directory. 
+The process is nearly identical to the process for the main LisaFPGA boards, except that you should use the files in ```hardware/twiggy_breakout/rev_X```, where X is the latest version number that's available in the directory. 
 
 The nice thing about the Twiggy breakouts is that you don't need to select a bunch of custom options like you did for the main LisaFPGA boards. They're really simple and can be manufactured using the default settings on everything. The only things that you may be interested in changing are:
 - The number of PCBs you want manufactured.
@@ -338,7 +338,7 @@ All of the LisaFPGA source code can be found in the ```LisaFPGA.srcs/sources_1``
 
 The results of a design run (synthesis/implementation/bitstream generation) will be placed in the ```LisaFPGA.runs/synth_1``` and ```LisaFPGA.runs/impl_1``` directories for synthesis and implementation, respectively. The final bitstream file that goes into your FPGA is ```LisaFPGA.runs/impl_1/top.bit```.
 
-All of the PCB designs are in the ```hardware``` directory. The ```PCB``` subdirectories contain the design files for various versions of the LisaFPGA PCB, and the ```Twiggy Breakout``` subdirectories contain the various versions of the Twiggy drive breakout board. Full EasyEDA projects, schematics, Gerbers, BOMs, and pick-and-place files can be found in each of these directories.
+All of the PCB designs are in the ```hardware``` directory. The ```lisafpga_desktop/rev_X``` subdirectories contain the design files for various revisions of the LisaFPGA PCB, and the ```twiggy_breakout/rev_X``` subdirectories contain the various versions of the Twiggy drive breakout board. Full EasyEDA projects, schematics, Gerbers, BOMs, and pick-and-place files can be found in each of these directories.
 
 There are various helper tools in the ```tools``` directory for dealing with ROM files, all written by Claude because I didn't feel like wasting time.
 - ```tools/romtool.py``` takes high and low 8-bit ROM files and fuses them into a single 16-bit ROM file, or takes a 16-bit file and splits it into high and low 8-bit ROMs.
