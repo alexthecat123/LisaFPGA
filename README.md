@@ -29,6 +29,7 @@ Ever since taking an introductory FPGA class 2 years ago during undergrad, I've 
 
 ## Features
 - Hardware emulation of a Lisa 1 or 2/5.
+- Low ~2.8W power consumption; can run for about 14-18 hours off a standard 10,000mAh USB power bank.
 - All the same I/O as the original Lisa, minus the expansion slots.
 - 2MB of RAM, configurable at runtime to anything from 512K up to 2MB.
 - On-the-fly overclocking up to 3.75x the original Lisa's speed.
@@ -193,7 +194,7 @@ Once the script says that it's done, turn your board off and back on again, and 
 ## Initial Setup
 ### Required Parts
 Using your LisaFPGA board is really easy! All you'll need to get up and running is:
-- A USB-C cable and either a computer or power brick to supply power.
+- A USB-C cable and a computer, power brick, or USB power bank to supply power. You can get about 14-18 hours of battery life off a standard 10,000mAh power bank, depending on usage, what peripherals you have connected, and the quality of your power bank.
 - A USB keyboard and mouse (or a real Lisa keyboard and mouse).
 - An HDMI cable and an HDMI-compatible display of some kind.
 - A microSD card for ESProFile hard disk emulation; any size is fine.
@@ -396,7 +397,9 @@ There are a couple of things that I'd like to (and/or need to) do before I can c
 Feel free to email me at [alexelectronicsguy@gmail.com](mailto:alexelectronicsguy@gmail.com) if you need help, find any bugs, or have any questions/comments!
 
 # Changelog
-6/6/2026 - Initial Release (v3 PCB)
+6/6/2026 - Initial LisaFPGA core v1.0 release and v3 PCB release.
+6/23/2026 - LisaFPGA core v1.1 - Replaced external SCC with an internal SystemVerilog implementation for the sake of cost savings, easier parts sourcing, and reduced PCB complexity.
+6/28/2026 - LisaFPGA core v1.2 - Fixed issues where marginal SRAM chips would sometimes fail at a 75MHz DOTCK and moved the VIAs from the E clock with clock enables to the DOTCK with clock enables to improve timing stability.
 
 # Appendix - Jumpers, Switches, Buttons, and LEDs
 There are quite a lot of switches, jumpers, buttons, and LEDs on the LisaFPGA board. Here's a table explaining what each one does, along with longer explanations whenever necessary.
