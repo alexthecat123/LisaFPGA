@@ -282,7 +282,7 @@ If you're using Twiggies, then a computer's USB port will DEFINITELY not provide
 
 This photo shows how everything should be connected, minus the actual Twiggy drives since I'm not lucky enough to own any!
 
-MEOWMEOW PICTURES OF ALL THE CONNECTIONS
+<img width="1280" height="720" alt="IMG_4167" src="https://github.com/user-attachments/assets/786e75c6-ae5c-4997-86b9-a9ec33790e6a" />
 
 ### Using the Serial Ports
 The two serial ports (Serial A and Serial B) along the top edge of the board work just like they do on a real Lisa; simply plug in your serial device and you'll be up and running! Just make sure that, if you're using the physical Serial B port, you have the SERIAL B SOURCE switch set to the RS232B position.
