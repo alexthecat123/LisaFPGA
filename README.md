@@ -63,7 +63,7 @@ For more info on the actual HDL code running on the FPGA, check the [Dev Notes](
 
 # Buying or Building a Board
 ## Buying a Board
-I offer LisaFPGA boards for sale through both [MacEffects](MEOWMEOW) and [Joe's Computer Museum](https://jcm-1.com/product/lisafpga/). The boards are listed for $300 apiece on both sites; the choice of who to buy from purely comes down to who you prefer to do business with.
+I offer LisaFPGA boards for sale through both [MacEffects](https://maceffects.com/products/lisafpga) and [Joe's Computer Museum](https://jcm-1.com/product/lisafpga/). The boards are listed for $300 apiece on both sites; the choice of who to buy from purely comes down to who you prefer to do business with.
 
 These boards are pretty popular and there's a several-week lead time on each batch that I fabricate, so there's a good chance that they'll frequently be out of stock, especially at first. Hopefully this will get better as we get later into 2026 and demand starts to drop!
 
