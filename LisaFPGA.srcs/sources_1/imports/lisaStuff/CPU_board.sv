@@ -95,7 +95,6 @@ module CPU_board(
     input logic INVID,
     output logic E_pos_phase, // A pulse that goes high for two cycle just after the rising edge of E
     output logic E_neg_phase,  // A pulse that goes high for two cycles just after the falling edge of E
-    output logic E_either_edge, // A clock that goes high for one cycle just after either edge of E
     input logic CPU_ROM_SEL, // Selects whether the CPU board uses revision H or 3A boot ROMs (and VSROMs)
     output logic VA_overflow, // Goes high during vertical blanking interval (for longer than _VSYNC)
     output logic _clr_vid_clk, // Goes low during horizontal active video (for shorter than _HSYNC)
@@ -103,15 +102,6 @@ module CPU_board(
     input logic [2:0] LisaFPGA_ID, // The 3-bit ID number for a LisaFPGA board, exposed in the LisaFPGA identity register
     input logic LisaFPGA_Desktop // Whether this is a LisaFPGA Desktop board (as opposed to a Motherboard Replacement), also in the identity register
     );
-
-    // The E_either_edge clock coming out of the CPU is just a standard logic fabric signal, but we need it to be on an actual clock net
-    // So do that with a BUFG
-    logic E_either_edge_logic;
-    BUFG E_bufg (
-        .I(E_either_edge_logic),
-        .O(E_either_edge)
-    );
-
 
     // The internal CPU board version of the address bus is narrower than the version that's exposed to other cards
     // So map the low 12 bits of the wide internal version to the narrow external one
@@ -1366,7 +1356,6 @@ module CPU_board(
         .VMAn(_VMA),
         .E_PosClkEn(E_pos_phase), // Neither of these are used on the CPU board, but our 6522 core on the I/O board needs both these phases
         .E_NegClkEn(E_neg_phase),
-        .Center_Edge_Pulse(E_either_edge_logic),
         .FC0(FC[0]),
         .FC1(FC[1]),
         .FC2(FC[2]),

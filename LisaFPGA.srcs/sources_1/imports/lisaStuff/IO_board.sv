@@ -105,10 +105,9 @@ module IO_board(
     input logic COPCK_2x, // 7.8MHz clock (the COP clock x 2); this is an actual clock net
     input logic COPCK, // 3.9MHz clock (the COP clock); this is NOT a clock net, so we'll use it as a clock enable
     input logic SCCCK, // 3.68MHz clock for the 8530 SCC
-    input logic E_pos_phase, // A pulse that goes high for two cycles just after the rising edge of E, used by the 6522 VIA core
+    input logic E_pos_phase, // A pulse that goes high for one cycle just after the rising edge of E, used by the 6522 VIA core
     input logic E_neg_phase, // Same but for the falling edge of E, used by the 6522 VIA core
     input logic DOTCK, // The dot clock
-    input logic E_either_edge, // The E clock, which is CPUCK/10
     output logic [2:0] VC, // 3-bit volume control for the external speaker amp
     
     input logic IO_ROM_SEL, // Selects whether the I/O board uses ROM revision A8 or 40
@@ -513,6 +512,19 @@ module IO_board(
         ._CLR(_RESET),
         .Q({FDIR, DISK_DIAG, dummy_bit, DIS, MT1, MT0, DR1, DR0})
     );
+
+    // Synchronize the DISK_DIAG signal into the DOTCK clock domain so we can feed it to the DOTCK-clocked VIA
+    (* ASYNC_REG = "TRUE" *) logic DISK_DIAG_int, DISK_DIAG_sync;
+    always_ff @(posedge DOTCK) begin
+        DISK_DIAG_int <= DISK_DIAG;
+        DISK_DIAG_sync <= DISK_DIAG_int;
+    end
+    // Same deal for FDIR
+    (* ASYNC_REG = "TRUE" *) logic FDIR_int, FDIR_sync;
+    always_ff @(posedge DOTCK) begin
+        FDIR_int <= FDIR;
+        FDIR_sync <= FDIR_int;
+    end
     
     // Do the inverted assignments for DR0 and DR1
     assign _DR0 = ~DR0;
@@ -904,17 +916,32 @@ module IO_board(
     logic CS_PP_VIA;
     assign CS_PP_VIA = ~_DSKPT & ~_VMA;
 
-    // Oh yeah, one more thing: we need a clock signal that goes high whenever either phase of E goes high
-    // This is the .clock() input to the VIA core; it's what all the VIA's internal operations are synchronized to
-    // The VIA logic simply checks the pos/neg phase signals to know when to do things; it's not actually clocked off them
+    // We also need to sample all of the control signals from the ProFile at the E edge instead of the DOTCK edge
+    // The VIA implementation is being clocked at DOTCK instead of the E clock like the original
+    // Meaning that the ProFile control signals we be sampled or asserted (depending on input vs output) much faster than an E-clocked VIA
+    // This can cause weirdness with the control signals not being asserted for long enough or being sampled too early
+    // So we need to sample all of the signals at the E edge before feeding them into the VIA or feeding them out to the ProFile
+    // No need to do PRES or OCD since they're both always asserted for long periods of time
+    logic _CMD_E_sampled, _BSY_E_sampled, PR_W_E_sampled, _PSTRB_E_sampled, latched_parity_in_E_sampled;
+    always_ff @(posedge DOTCK) begin
+        if (E_pos_phase || E_neg_phase) begin
+            // Whenever we see an E edge (rising or falling), sample all the control signals
+            _CMD_E_sampled <= _CMD_ungated;
+            _BSY_E_sampled <= _BSY;
+            PR_W_E_sampled <= PR_W_ungated;
+            _PSTRB_E_sampled <= _PSTRB_ungated;
+            latched_parity_in_E_sampled <= latched_parity_in;
+        end
+    end
+
     logic [7:0] port_b_ddrb_pp_via;
 
     // And now we can instantiate the VIA with all this information
     via6522 pp_via(
-        .clock(E_either_edge), // Clock it with the E clock
-        .rising(E_pos_phase), // But use the E phase signals for timing
+        .clock(DOTCK), // Use DOTCK as the VIA's free-running clock
+        .rising(E_pos_phase), // Use our rising and falling edge E strobes as our clock enables
         .falling(E_neg_phase),
-        .reset(~_RESET), // Systemwide reset
+        .reset(~_RESET_SYSTEM), // Systemwide reset
         .addr(A[6:3]), // RS0-RS3 address lines come from A3 to A6
         .wen(CS_PP_VIA & ~READ), // We write when the chip is selected and READ is low
         .ren(CS_PP_VIA & READ), // We read when the chip is selected and READ is high
@@ -925,11 +952,11 @@ module IO_board(
         .port_b_o(port_b_out_PP_VIA), // These two composite signals for Port B are about to be broken out into their individual bits
         .port_b_i(port_b_in_PP_VIA),
         .port_b_t(port_b_ddrb_pp_via), // We need this DDRB signal to know which bits of Port B are inputs vs outputs
-        .ca1_i(_BSY), // CA1 comes from _BSY, not gated by _ProFile_EN
+        .ca1_i(_BSY_E_sampled), // CA1 comes from the E-sampled version of _BSY
         .ca2_o(_PSTRB_ungated), // CA2 goes to the ungated version of _PSTRB
         .ca2_i(1'b0), // Make sure the unused CA2 input is tied to a known state
         .cb1_i(END_9512), // CB1 comes from the END output of the 9512
-        .cb2_i(latched_parity_in), // CB2 comes from the latched input parity
+        .cb2_i(latched_parity_in_E_sampled), // CB2 comes from the latched input parity, but the E-sampled version
         .irq(IRQ_PP_VIA) // And of course IRQ goes out to the IRQ signal
     );
 
@@ -944,21 +971,22 @@ module IO_board(
 
     // Now time to break out the individual bits of Port B
     assign port_b_in_PP_VIA[0] = OCD_ungated; // PB0 is OCD
-    assign port_b_in_PP_VIA[1] = _BSY; // PB1 is _BSY, it's not gated by _ProFile_EN
+    assign port_b_in_PP_VIA[1] = _BSY_E_sampled; // PB1 is the E-sampled version of _BSY, it's not gated by _ProFile_EN
     assign _ProFile_EN = port_b_out_PP_VIA[2]; // PB2 is the ProFile communications enable
     assign PR_W_ungated = port_b_out_PP_VIA[3]; // PB3 is PR_W
     assign _CMD_ungated = port_b_out_PP_VIA[4]; // PB4 is _CMD
     assign port_b_in_PP_VIA[5] = parity_out; // PB5 is the output parity
-    assign port_b_in_PP_VIA[6] = DISK_DIAG; // PB6 is DISK_DIAG from the FDC
+    assign port_b_in_PP_VIA[6] = DISK_DIAG_sync; // PB6 is the DOTCK-synchronized DISK_DIAG from the FDC
     assign WCNT = port_b_ddrb_pp_via[7] ? port_b_out_PP_VIA[7] : 1'b0; // PB7 is WCNT, but only when it's an output
     // Put the unused input bits of Port B into known states
     assign port_b_in_PP_VIA[4:2] = 3'b111;
     assign port_b_in_PP_VIA[7] = 1'b1;
 
     // Now we need to gate all those ungated ProFile control signals with the ProFile communications enable signal
-    assign DR_W = (~_ProFile_EN) ? PR_W_ungated : 1'b1;
-    assign _PSTRB = (~_ProFile_EN) ? _PSTRB_ungated : 1'b1;
-    assign _CMD = (~_ProFile_EN) ? _CMD_ungated : 1'b1;
+    // Make sure to use the E-sampled versions of the signals, not the raw ones
+    assign DR_W = (~_ProFile_EN) ? PR_W_E_sampled : 1'b1;
+    assign _PSTRB = (~_ProFile_EN) ? _PSTRB_E_sampled : 1'b1;
+    assign _CMD = (~_ProFile_EN) ? _CMD_E_sampled : 1'b1;
     assign OCD_ungated = (~_ProFile_EN) ? OCD : 1'b1;
     //assign _BSY_ungated = (~_ProFile_EN) ? _BSY : 1'b1;
 
@@ -991,16 +1019,24 @@ module IO_board(
         end
     end*/
     logic _PRES;
+
+    // We need to synchronize _PSTRB into the DOTCK domain since the parity FF that uses it is clocked by DOTCK
+    (* ASYNC_REG = "TRUE" *) logic _PSTRB_ungated_int, _PSTRB_ungated_sync;
+    always_ff @(posedge DOTCK) begin
+        _PSTRB_ungated_int <= _PSTRB_ungated;
+        _PSTRB_ungated_sync     <= _PSTRB_ungated_int;
+    end
+
     logic _PSTRB_ungated_prev;
     always_ff @(posedge DOTCK) begin
         if (!_PRES) begin
             latched_parity_in <= 1'b0;
-        end else if (_PSTRB_ungated && !_PSTRB_ungated_prev) begin
+        end else if (_PSTRB_ungated_sync && !_PSTRB_ungated_prev) begin
             if (parity_ff_input) begin
                 latched_parity_in <= 1'b1;
             end
         end
-        _PSTRB_ungated_prev <= _PSTRB_ungated;
+        _PSTRB_ungated_prev <= _PSTRB_ungated_sync;
     end
 
     // And another to the PD_out bus, which generates the parity of the outgoing data to the ProFile
@@ -1105,6 +1141,25 @@ module IO_board(
     logic READ_ACK_COP;
     // This is the SO (shift out) pin on the COP, which hooks to VIA pin CA1. It gets asserted whenever the COP has data ready for the VIA
     logic DATA_QUEUED_COP;
+    
+    // Go ahead and make synchronizers that sync _READY and DATA_QUEUED to the DOTCK domain so we can feed them into a VIA
+    // No need to sync the whole data bus because a flip-flop synchronizer can't work over multiple bits at once due to inter-bit skew
+    // So just sync the control signals and use them as a metric to know when to read the data bus
+    (* ASYNC_REG = "TRUE" *) logic _READY_COP_int, _READY_COP_sync;
+    (* ASYNC_REG = "TRUE" *) logic DATA_QUEUED_COP_int, DATA_QUEUED_COP_sync;
+    always_ff @(posedge DOTCK) begin
+        _READY_COP_int <= _READY_COP;
+        _READY_COP_sync <= _READY_COP_int;
+        DATA_QUEUED_COP_int <= DATA_QUEUED_COP;
+        DATA_QUEUED_COP_sync <= DATA_QUEUED_COP_int;
+    end
+
+    // We also need to sync the READ_ACK signal from the VIA to the COPCK_2x domain for the same reason
+    (* ASYNC_REG = "TRUE" *) logic READ_ACK_COP_int, READ_ACK_COP_sync;
+    always_ff @(posedge COPCK_2x) begin
+        READ_ACK_COP_int <= READ_ACK_COP;
+        READ_ACK_COP_sync <= READ_ACK_COP_int;
+    end
 
 
     // The COP _PWRSW line gets asserted whenever the user hits the power switch, or the _RESET line goes low
@@ -1152,7 +1207,7 @@ module IO_board(
         // I learned this the hard way and spent far more time than I care to admit trying to figure out why the COP wasn't working
         .io_g_o({dummy_COP0, _NMI_COP, dummy_COP1, dummy_COP2}), // The only G output is for NMI, tie the others to dummy wires
         .io_in_i(4'b1111), // The I inputs don't even exist on the COP421, so just tie them to 1
-        .si_i(READ_ACK_COP), // SI is an input to the COP from CA2 on the VIA; used to tell the cop when we've read a byte off its bus
+        .si_i(READ_ACK_COP_sync), // SI is an input to the COP from CA2 on the VIA; used to tell the cop when we've read a byte off its bus; use the version that's synced to the COPCK domain
         .so_o(DATA_QUEUED_COP), // And the SO output goes to CA1 on the VIA, which is asserted whenever the COP has data ready for the VIA
         .sk_o(KBD_reset_COP) // SK is the keyboard reset output from the COP      
     );
@@ -1173,17 +1228,17 @@ module IO_board(
     logic KBIR;
     assign _KBIR = ~KBIR;
 
-    logic READ_ACK_COP_int;
+    logic READ_ACK_COP_ungated;
     logic ca2_oe;
     logic [7:0] L_COP_out_int;
     logic [7:0] KBD_via_DDRA;
 
     // And now we instantiate the chip
     via6522 kbd_via(
-        .clock(E_either_edge), // Clock it with the E clock
-        .rising(E_pos_phase), // But use the E phase signals for timing
+        .clock(DOTCK), // Use DOTCK as the VIA's free-running clock
+        .rising(E_pos_phase), // Use our rising and falling edge E strobes as our clock enables
         .falling(E_neg_phase),
-        .reset(~_RESET), // Systemwide reset
+        .reset(~_RESET_SYSTEM), // Systemwide reset
         .addr(A[4:1]), // RS0-RS3 address lines come from A1 to A4
         .wen(CS_KBD_VIA & ~READ), // We write when the chip is selected and READ is low
         .ren(CS_KBD_VIA & READ), // We read when the chip is selected and READ is high
@@ -1195,8 +1250,8 @@ module IO_board(
         .port_b_o(port_b_out_KBD_VIA),
         .port_b_i(port_b_in_KBD_VIA),
         .port_b_t(KBD_via_DDRB), // We need the DDRB register so we can know when PB0 is an output to drive the keyboard reset line
-        .ca1_i(DATA_QUEUED_COP), // CA1 comes from the SO (data queued) output of the COP
-        .ca2_o(READ_ACK_COP_int), // CA2 goes to the SI (read acknowledge) input of the COP
+        .ca1_i(DATA_QUEUED_COP_sync), // CA1 comes from the SO (data queued) output of the COP, but synced to the DOTCK domain
+        .ca2_o(READ_ACK_COP_ungated), // CA2 goes to the SI (read acknowledge) input of the COP
         .ca2_t(ca2_oe), // We need to be able to tri-state CA2 so we don't drive the COP's SI line when we're not supposed to
         .ca2_i(1'b0), // Make sure the unused CA2 input is tied to a known state
         .cb1_i(1'b1), // CB1 is pulled up to 5V
@@ -1206,7 +1261,7 @@ module IO_board(
     );
 
     // When CA2 is an output, drive the COP's SI line with it, else leave it high
-    assign READ_ACK_COP = (ca2_oe) ? READ_ACK_COP_int : 1'b1;
+    assign READ_ACK_COP = (ca2_oe) ? READ_ACK_COP_ungated : 1'b1;
 
     // Only drive the L bus to the COP when the VIA is set to output on Port A
     // Otherwise set it to all zeros, except the high bit which is pulled up to 5V on the schematic
@@ -1216,6 +1271,13 @@ module IO_board(
     // The COP actually expects it to be driven for a bit after the pulse ends too, and with a faster CPU clock, that extra time gets cut off
     // This isn't a problem in the boot ROM because of how its code is written; only in LOS
     // But anyway, the fix is to make an extended version of DDRA that stays high for a little while after the regular DDRA goes low
+    // This requires clocking our extension logic off a non-DOTCK clock so it's independent of the CPU speed, so we'll use C16M for that
+    // But this also means that we need to sync DDRA from the VIA into the C16M domain before we begin
+    (* ASYNC_REG = "TRUE" *) logic KBD_via_DDRA_int, KBD_via_DDRA_sync;
+    always_ff @(posedge C16M) begin
+        KBD_via_DDRA_int <= KBD_via_DDRA;
+        KBD_via_DDRA_sync <= KBD_via_DDRA_int;
+    end
     logic KBD_via_DDRA_extended;
     logic [10:0] DDRA_extension_counter;
     always_ff @(posedge C16M) begin
@@ -1224,7 +1286,7 @@ module IO_board(
             DDRA_extension_counter <= 11'b0;
             KBD_via_DDRA_extended <= 1'b0;
         end else begin
-            if (KBD_via_DDRA) begin
+            if (KBD_via_DDRA_sync) begin
                 // Whenever DDRA goes high, immediately set the extended DDRA signal high and reset the counter
                 KBD_via_DDRA_extended <= 1'b1;
                 DDRA_extension_counter <= 11'b0;
@@ -1289,9 +1351,9 @@ module IO_board(
     // Now we break out the Port B bits
     assign _KBD_reset_VIA = port_b_out_KBD_VIA[0]; // PB0 is _KBD_reset_VIA
     assign VC = port_b_out_KBD_VIA[3:1]; // PB1 to PB3 are the three bits of VC (volume control)
-    assign port_b_in_KBD_VIA[4] = FDIR; // PB4 is FDIR from the FDC
+    assign port_b_in_KBD_VIA[4] = FDIR_sync; // PB4 is FDIR synced to the DOTCK domain from the FDC
     assign port_b_in_KBD_VIA[5] = _PRES; // PB5 is _PRES from the ProFile
-    assign port_b_in_KBD_VIA[6] = _READY_COP; // PB6 is _READY from the COP
+    assign port_b_in_KBD_VIA[6] = _READY_COP_sync; // PB6 is _READY from the COP, but synced to the DOTCK domain
     // PB7 is one of the things that can drive _CRES, but the ProFile can also drive _CRES, so we have separate CRES_out and CRES_in lines
     always_comb begin
         if (KBD_via_DDRB[7]) begin

@@ -238,7 +238,6 @@ module top(
     logic VAL_LED;
     logic E_pos_phase;
     logic E_neg_phase;
-    logic E_either_edge;
 
     logic T1, T2, T3;
 
@@ -601,7 +600,6 @@ module top(
         .INVID(~INVID),
         .E_pos_phase(E_pos_phase),
         .E_neg_phase(E_neg_phase),
-        .E_either_edge(E_either_edge),
         .CPU_ROM_SEL(CPU_ROM_SEL),
         .VA_overflow(VA_overflow),
         ._clr_vid_clk(_clr_vid_clk),
@@ -1244,7 +1242,6 @@ module top(
         .E_pos_phase(E_pos_phase),
         .E_neg_phase(E_neg_phase),
         .DOTCK(DOTCK),
-        .E_either_edge(E_either_edge),
         .VC(VC),
         .IO_ROM_SEL(IO_ROM_SEL),
         .spoof_88(GPIO[0])

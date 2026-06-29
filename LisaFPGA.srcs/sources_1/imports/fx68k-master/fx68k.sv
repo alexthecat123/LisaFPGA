@@ -148,7 +148,7 @@ module fx68k(
 	
 `ifdef USE_E_CLKEN
 	// Next cycle would be raising/falling edge of E output
-	output logic E_PosClkEn, E_NegClkEn, Center_Edge_Pulse,
+	output logic E_PosClkEn, E_NegClkEn,
 `endif	
 
 	output FC0, output FC1, output FC2,
@@ -474,28 +474,10 @@ module fx68k(
 	// Internal stop just one cycle before E falling edge
 	wire xVma = ~rVma & (eCntr == 8);
 	
-`ifdef USE_E_CLKEN
-	always_ff @(posedge Clks.enPhi2) begin
-		if (eCntr == 4) begin
-			E_PosClkEn <= 1'b1;
-		end else if (eCntr == 6) begin
-			E_PosClkEn <= 1'b0;
-		end else if (eCntr == 7) begin
-			E_NegClkEn <= 1'b1;
-		end else if (eCntr == 9) begin
-			E_NegClkEn <= 1'b0;
-		end
-
-		if ((eCntr == 5) || (eCntr == 8)) begin
-			Center_Edge_Pulse <= 1'b1;
-		end else begin
-			Center_Edge_Pulse <= 1'b0;
-		end
-
-	end
-	//assign E_PosClkEn = (Clks.enPhi2 & (eCntr == 5));
-	//assign E_NegClkEn = (Clks.enPhi2 & (eCntr == 9));
-`endif
+	`ifdef USE_E_CLKEN
+		assign E_PosClkEn = (Clks.enPhi2 & (eCntr == 5));
+		assign E_NegClkEn = (Clks.enPhi2 & (eCntr == 9));
+	`endif
 	
 	always_ff @( posedge Clks.clk) begin
 		if( Clks.pwrUp) begin

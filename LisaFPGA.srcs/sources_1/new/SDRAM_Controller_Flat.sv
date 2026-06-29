@@ -74,8 +74,10 @@ module SDRAM_Controller_Flat(
         end
     end
 
+    // Stick the _CS register in an IOB instead of a regular FF so that the SRAM chip sees it as quickly as possible
+    // This allows us to have maximal selection time, which is important given that its 55ns timing is already marginal at a 75MHz DOTCK
+    (* IOB = "TRUE" *) logic _CS;
     // Select the SDRAM when both RAS and CAS are low
-    logic _CS;
     //logic _delayed_RAS;
     //logic _even_more_delayed_RAS;
     always_ff @(posedge clk) begin

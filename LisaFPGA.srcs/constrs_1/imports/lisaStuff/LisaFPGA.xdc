@@ -32,6 +32,8 @@ set_false_path -to [get_cells usbrst_int_reg]
 set_false_path -to [get_cells io_board/_AS_int_reg]
 ## False-path into the INTIO synchronizer on the I/O board; ignore it because the synchronizer once again handles the DOTCK-to-C16M CDC
 set_false_path -to [get_cells io_board/_INTIO_int_reg]
+## False-path into the first stage of the _PSTRB_ungated synchronizer
+set_false_path -to [get_cells io_board/_PSTRB_ungated_int_reg]
 
 ## Here are some more false paths for the system ON signal
 ## These goes into the DOTCK BUFGCTRL and serves as the clock enables
@@ -93,6 +95,37 @@ set_false_path -from [get_cells io_board/FDC_RAM_addr_select_reg] -to $_xlnx_sha
 ## And _FDC_RAM_CS_processed to the SCC
 set_false_path -from [get_cells io_board/_FDC_RAM_CS_processed_reg] -to $_xlnx_shared_i0
 
+## There are similar false paths we need to do from the FDC to the two VIAs, once again for the same reason
+set _xlnx_shared_i1 [get_cells -hierarchical -filter {NAME =~ io_board/kbd_via/*}]
+set _xlnx_shared_i2 [get_cells -hierarchical -filter {NAME =~ io_board/pp_via/*}]
+set_false_path -from [get_cells {io_board/MA_reg[*]}] -to $_xlnx_shared_i1
+set_false_path -from [get_cells {io_board/MA_reg[*]}] -to $_xlnx_shared_i2
+set_false_path -from [get_cells {io_board/FDC_counter_reg[*]}] -to $_xlnx_shared_i1
+set_false_path -from [get_cells {io_board/FDC_counter_reg[*]}] -to $_xlnx_shared_i2
+set_false_path -from [get_cells io_board/FDC_RAM_addr_select_reg] -to $_xlnx_shared_i1
+set_false_path -from [get_cells io_board/FDC_RAM_addr_select_reg] -to $_xlnx_shared_i2
+set_false_path -from [get_cells io_board/_FDC_RAM_CS_processed_reg] -to $_xlnx_shared_i1
+set_false_path -from [get_cells io_board/_FDC_RAM_CS_processed_reg] -to $_xlnx_shared_i2
+
+## We also have to false-path a few other signals going into and out of the VIAs, but we have synchronizers for them so it's fine
+## First up, the DISK_DIAG signal from the FDC to the parallel port VIA
+set_false_path -to [get_cells io_board/DISK_DIAG_int_reg]
+## And the FDIR signal from the FDC to the keyboard VIA
+set_false_path -to [get_cells io_board/FDIR_int_reg]
+## Then the READY signal from the COP to the keyboard VIA
+set_false_path -to [get_cells io_board/_READY_COP_int_reg]
+## The DATA_QUEUED signal from the COP to the keyboard VIA
+set_false_path -to [get_cells io_board/DATA_QUEUED_COP_int_reg]
+## And the READ_ACK signal from the keyboard VIA to the COP
+set_false_path -to [get_cells io_board/READ_ACK_COP_int_reg]
+## Also false-path the COP data bus (both directions); we can't put a synchronizer on it because of inter-bit skew, but syncing the handshake signals is enough
+set_false_path -to [get_cells {io_board/kbd_via/port_a_c_reg[*]}]
+set_false_path -to [get_cells {io_board/L_COP_out_reg[*]}]
+## False-path from the keyboard VIA's DDRA register to the DDRA extension logic that runs in C16M; we have a synchronizer for this too
+set_false_path -to [get_cells io_board/KBD_via_DDRA_int_reg]
+## And finally, a false path from the keyboard VIA to the USB keyboard interface's keyboard input; there's a synchronizer in the USB keyboard module
+set_false_path -to [get_cells usb_kbd_interface/KBD_in_int_reg]
+
 ## There's an annoying DRC rule during implementation that gives us an error if we try to drive 3 or more MMCMs from one IBUF
 ## You can do it, but the MMCMs have to placed in certain places relative to the IBUF, which doesn't work out for us
 ## So to get around this, we tell Vivado to ignore the rule for our sysclk
@@ -110,6 +143,23 @@ set_property CLOCK_DEDICATED_ROUTE ANY_CMT_COLUMN [get_nets dotck_B]
 ## But by default, Vivado tries to put the primary clock divider MMCM there instead, so force it into X0Y0 and put our HDMI MMCM in X0Y2
 set_property LOC MMCME2_ADV_X0Y2 [get_cells lisa_hdmi_output/hdmi_clock_generator/inst/mmcm_adv_inst]
 set_property LOC MMCME2_ADV_X0Y0 [get_cells primary_clock_divider/inst/mmcm_adv_inst]
+
+## Place the RAM board in the clock region directly adjacent to the SRAM I/O pins (X1Y1) to ensure that the SRAM interface is as fast as possible
+## Certain unluckily-slow SRAM chips can be borderline too slow to work properly at a 75MHz DOTCK if we don't do this
+## First, create a pblock to contain all of the logic for the RAM board
+create_pblock MEM_PBLOCK
+## And then add all of the RAM board (slot1) logic to it
+add_cells_to_pblock [get_pblocks MEM_PBLOCK] [get_cells {slot1}]
+## Then finally, stick it in the X1Y1 clock region
+resize_pblock [get_pblocks MEM_PBLOCK] -add {CLOCKREGION_X1Y1:CLOCKREGION_X1Y1}
+
+## Another thing for the SRAM interface: we need to set max delays for the SRAM signals to ensure that the SRAM has enough time to respond
+## These max delays tell the Vivado how long of a path it's allowed to take when routing the SRAM signals internally
+## And a timing violation is generated if it fails to route them as fast as our delay allows
+## This way, we can set the max internal delay well below the 75MHz DOTCK period of 13-ish ns, and that ensures that there's still plenty of time for the signals to propagate outside the FPGA
+## The datapath_only option means that we don't care about setup/hold timing here in relation to any clocks, just the raw routing delay
+## Which is exactly what we want given that the SRAM is asynchronous
+set_max_delay -datapath_only 6.0 -to [get_ports _CE_SRAM _OE_SRAM _WE_SRAM _UDS_SRAM _LDS_SRAM {A_SRAM[*]} {D_SRAM[*]}]
 
 ## We also need to declare some false paths related to our clock muxing
 ## This is because only one of the clocks is actually active at a time, so timing analysis between the 4 dot clocks is pointless
@@ -177,47 +227,49 @@ set_property -dict {PACKAGE_PIN F15 IOSTANDARD TMDS_33} [get_ports {HDMI_D_P[2]}
 #set_property -dict {PACKAGE_PIN K13 IOSTANDARD LVCMOS33} [get_ports HDMI_SDA]
 
 ## Parallel SRAM Interface
-set_property -dict {PACKAGE_PIN K6 IOSTANDARD LVCMOS33} [get_ports _CE_SRAM]
-set_property -dict {PACKAGE_PIN L1 IOSTANDARD LVCMOS33} [get_ports _OE_SRAM]
-set_property -dict {PACKAGE_PIN M1 IOSTANDARD LVCMOS33} [get_ports _WE_SRAM]
-set_property -dict {PACKAGE_PIN K3 IOSTANDARD LVCMOS33} [get_ports _UDS_SRAM]
-set_property -dict {PACKAGE_PIN L3 IOSTANDARD LVCMOS33} [get_ports _LDS_SRAM]
-set_property -dict {PACKAGE_PIN N2 IOSTANDARD LVCMOS33} [get_ports {A_SRAM[1]}]
-set_property -dict {PACKAGE_PIN N1 IOSTANDARD LVCMOS33} [get_ports {A_SRAM[2]}]
-set_property -dict {PACKAGE_PIN M3 IOSTANDARD LVCMOS33} [get_ports {A_SRAM[3]}]
-set_property -dict {PACKAGE_PIN M2 IOSTANDARD LVCMOS33} [get_ports {A_SRAM[4]}]
-set_property -dict {PACKAGE_PIN K5 IOSTANDARD LVCMOS33} [get_ports {A_SRAM[5]}]
-set_property -dict {PACKAGE_PIN L4 IOSTANDARD LVCMOS33} [get_ports {A_SRAM[6]}]
-set_property -dict {PACKAGE_PIN L6 IOSTANDARD LVCMOS33} [get_ports {A_SRAM[7]}]
-set_property -dict {PACKAGE_PIN L5 IOSTANDARD LVCMOS33} [get_ports {A_SRAM[8]}]
-set_property -dict {PACKAGE_PIN U1 IOSTANDARD LVCMOS33} [get_ports {A_SRAM[9]}]
-set_property -dict {PACKAGE_PIN V1 IOSTANDARD LVCMOS33} [get_ports {A_SRAM[10]}]
-set_property -dict {PACKAGE_PIN U4 IOSTANDARD LVCMOS33} [get_ports {A_SRAM[11]}]
-set_property -dict {PACKAGE_PIN U3 IOSTANDARD LVCMOS33} [get_ports {A_SRAM[12]}]
-set_property -dict {PACKAGE_PIN U2 IOSTANDARD LVCMOS33} [get_ports {A_SRAM[13]}]
-set_property -dict {PACKAGE_PIN V2 IOSTANDARD LVCMOS33} [get_ports {A_SRAM[14]}]
-set_property -dict {PACKAGE_PIN V5 IOSTANDARD LVCMOS33} [get_ports {A_SRAM[15]}]
-set_property -dict {PACKAGE_PIN V4 IOSTANDARD LVCMOS33} [get_ports {A_SRAM[16]}]
-set_property -dict {PACKAGE_PIN R3 IOSTANDARD LVCMOS33} [get_ports {A_SRAM[17]}]
-set_property -dict {PACKAGE_PIN T3 IOSTANDARD LVCMOS33} [get_ports {A_SRAM[18]}]
-set_property -dict {PACKAGE_PIN T5 IOSTANDARD LVCMOS33} [get_ports {A_SRAM[19]}]
-set_property -dict {PACKAGE_PIN T4 IOSTANDARD LVCMOS33} [get_ports {A_SRAM[20]}]
-set_property -dict {PACKAGE_PIN N5 IOSTANDARD LVCMOS33} [get_ports {D_SRAM[0]}]
-set_property -dict {PACKAGE_PIN P5 IOSTANDARD LVCMOS33} [get_ports {D_SRAM[1]}]
-set_property -dict {PACKAGE_PIN P4 IOSTANDARD LVCMOS33} [get_ports {D_SRAM[2]}]
-set_property -dict {PACKAGE_PIN P3 IOSTANDARD LVCMOS33} [get_ports {D_SRAM[3]}]
-set_property -dict {PACKAGE_PIN P2 IOSTANDARD LVCMOS33} [get_ports {D_SRAM[4]}]
-set_property -dict {PACKAGE_PIN R2 IOSTANDARD LVCMOS33} [get_ports {D_SRAM[5]}]
-set_property -dict {PACKAGE_PIN M4 IOSTANDARD LVCMOS33} [get_ports {D_SRAM[6]}]
-set_property -dict {PACKAGE_PIN N4 IOSTANDARD LVCMOS33} [get_ports {D_SRAM[7]}]
-set_property -dict {PACKAGE_PIN R1 IOSTANDARD LVCMOS33} [get_ports {D_SRAM[8]}]
-set_property -dict {PACKAGE_PIN T1 IOSTANDARD LVCMOS33} [get_ports {D_SRAM[9]}]
-set_property -dict {PACKAGE_PIN M6 IOSTANDARD LVCMOS33} [get_ports {D_SRAM[10]}]
-set_property -dict {PACKAGE_PIN N6 IOSTANDARD LVCMOS33} [get_ports {D_SRAM[11]}]
-set_property -dict {PACKAGE_PIN R6 IOSTANDARD LVCMOS33} [get_ports {D_SRAM[12]}]
-set_property -dict {PACKAGE_PIN R5 IOSTANDARD LVCMOS33} [get_ports {D_SRAM[13]}]
-set_property -dict {PACKAGE_PIN V7 IOSTANDARD LVCMOS33} [get_ports {D_SRAM[14]}]
-set_property -dict {PACKAGE_PIN V6 IOSTANDARD LVCMOS33} [get_ports {D_SRAM[15]}]
+## Ensure all of the SRAM pins have a fast slew rate instead of the default of slow and set them all to the max drive strength of 12mA
+## We have to do this because our 55ns SRAM is borderline too slow to work at a 75MHz DOTCK, so we need the fastest I/O we can possibly get
+set_property -dict {PACKAGE_PIN K6 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports _CE_SRAM]
+set_property -dict {PACKAGE_PIN L1 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports _OE_SRAM]
+set_property -dict {PACKAGE_PIN M1 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports _WE_SRAM]
+set_property -dict {PACKAGE_PIN K3 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports _UDS_SRAM]
+set_property -dict {PACKAGE_PIN L3 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports _LDS_SRAM]
+set_property -dict {PACKAGE_PIN N2 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {A_SRAM[1]}]
+set_property -dict {PACKAGE_PIN N1 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {A_SRAM[2]}]
+set_property -dict {PACKAGE_PIN M3 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {A_SRAM[3]}]
+set_property -dict {PACKAGE_PIN M2 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {A_SRAM[4]}]
+set_property -dict {PACKAGE_PIN K5 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {A_SRAM[5]}]
+set_property -dict {PACKAGE_PIN L4 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {A_SRAM[6]}]
+set_property -dict {PACKAGE_PIN L6 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {A_SRAM[7]}]
+set_property -dict {PACKAGE_PIN L5 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {A_SRAM[8]}]
+set_property -dict {PACKAGE_PIN U1 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {A_SRAM[9]}]
+set_property -dict {PACKAGE_PIN V1 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {A_SRAM[10]}]
+set_property -dict {PACKAGE_PIN U4 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {A_SRAM[11]}]
+set_property -dict {PACKAGE_PIN U3 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {A_SRAM[12]}]
+set_property -dict {PACKAGE_PIN U2 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {A_SRAM[13]}]
+set_property -dict {PACKAGE_PIN V2 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {A_SRAM[14]}]
+set_property -dict {PACKAGE_PIN V5 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {A_SRAM[15]}]
+set_property -dict {PACKAGE_PIN V4 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {A_SRAM[16]}]
+set_property -dict {PACKAGE_PIN R3 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {A_SRAM[17]}]
+set_property -dict {PACKAGE_PIN T3 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {A_SRAM[18]}]
+set_property -dict {PACKAGE_PIN T5 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {A_SRAM[19]}]
+set_property -dict {PACKAGE_PIN T4 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {A_SRAM[20]}]
+set_property -dict {PACKAGE_PIN N5 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {D_SRAM[0]}]
+set_property -dict {PACKAGE_PIN P5 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {D_SRAM[1]}]
+set_property -dict {PACKAGE_PIN P4 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {D_SRAM[2]}]
+set_property -dict {PACKAGE_PIN P3 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {D_SRAM[3]}]
+set_property -dict {PACKAGE_PIN P2 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {D_SRAM[4]}]
+set_property -dict {PACKAGE_PIN R2 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {D_SRAM[5]}]
+set_property -dict {PACKAGE_PIN M4 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {D_SRAM[6]}]
+set_property -dict {PACKAGE_PIN N4 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {D_SRAM[7]}]
+set_property -dict {PACKAGE_PIN R1 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {D_SRAM[8]}]
+set_property -dict {PACKAGE_PIN T1 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {D_SRAM[9]}]
+set_property -dict {PACKAGE_PIN M6 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {D_SRAM[10]}]
+set_property -dict {PACKAGE_PIN N6 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {D_SRAM[11]}]
+set_property -dict {PACKAGE_PIN R6 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {D_SRAM[12]}]
+set_property -dict {PACKAGE_PIN R5 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {D_SRAM[13]}]
+set_property -dict {PACKAGE_PIN V7 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {D_SRAM[14]}]
+set_property -dict {PACKAGE_PIN V6 IOSTANDARD LVCMOS33 SLEW FAST DRIVE 12} [get_ports {D_SRAM[15]}]
 set_property -dict {PACKAGE_PIN T8 IOSTANDARD LVCMOS33} [get_ports {RAM_SEL[0]}]
 set_property -dict {PACKAGE_PIN U8 IOSTANDARD LVCMOS33} [get_ports {RAM_SEL[1]}]
 

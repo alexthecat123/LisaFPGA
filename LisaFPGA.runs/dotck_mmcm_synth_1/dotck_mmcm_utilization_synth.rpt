@@ -1,7 +1,7 @@
 Copyright 1986-2022 Xilinx, Inc. All Rights Reserved. Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 | Tool Version : Vivado v.2025.2 (lin64) Build 6299465 Fri Nov 14 12:34:56 MST 2025
-| Date         : Wed Apr  1 02:38:17 2026
+| Date         : Fri Jun 26 13:27:45 2026
 | Host         : alex-cattop running 64-bit Linux Mint 22.1
 | Command      : report_utilization -file dotck_mmcm_utilization_synth.rpt -pb dotck_mmcm_utilization_synth.pb
 | Design       : dotck_mmcm
