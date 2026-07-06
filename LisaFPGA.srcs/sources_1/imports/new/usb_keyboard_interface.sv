@@ -153,6 +153,7 @@ module usb_keyboard_interface(
         // Punctuation / symbols
         // ----------------------------------------------------------------
         lisa_keycode_hid[8'h28] = 8'h48; // Enter (main Return)
+        lisa_keycode_hid[8'h29] = 8'h68; // Esc -> ` ~ (Esc in LisaTerminal)
         lisa_keycode_hid[8'h2A] = 8'h45; // Backspace
         lisa_keycode_hid[8'h2B] = 8'h78; // Tab
         lisa_keycode_hid[8'h2C] = 8'h5C; // Space
@@ -162,13 +163,16 @@ module usb_keyboard_interface(
         lisa_keycode_hid[8'h2E] = 8'h41; // = +
         lisa_keycode_hid[8'h2F] = 8'h56; // [ {
         lisa_keycode_hid[8'h30] = 8'h57; // ] }
-        lisa_keycode_hid[8'h31] = 8'h42; // \ |
+        lisa_keycode_hid[8'h31] = 8'h42; // \ | (ANSI backslash)
+        lisa_keycode_hid[8'h32] = 8'h42; // \ | (ISO backslash)
         lisa_keycode_hid[8'h33] = 8'h5A; // ; :
         lisa_keycode_hid[8'h34] = 8'h5B; // ' "
         lisa_keycode_hid[8'h35] = 8'h68; // ` ~
         lisa_keycode_hid[8'h36] = 8'h5D; // , <
         lisa_keycode_hid[8'h37] = 8'h5E; // . >
         lisa_keycode_hid[8'h38] = 8'h4C; // / ?
+        lisa_keycode_hid[8'h64] = 8'h43; // < > (ISO 102nd key)
+        lisa_keycode_hid[8'h65] = 8'h46; // Menu -> third Enter key
 
         // ------------------------------------------------------------
         // Keypad operators
@@ -178,6 +182,7 @@ module usb_keyboard_interface(
         lisa_keycode_hid[8'h56] = 8'h21; // KP -
         lisa_keycode_hid[8'h57] = 8'h22; // KP +
         lisa_keycode_hid[8'h63] = 8'h2C; // KP .
+        lisa_keycode_hid[8'h67] = 8'h2B; // KP = (Mac USB kbd) -> KP , (Lisa kbd)
 
         // ------------------------------------------------------------
         // Keypad digits
@@ -200,12 +205,26 @@ module usb_keyboard_interface(
         lisa_keycode_hid[8'h53] = 8'h20; // KP NumLock/Clear -> Lisa Clear
 
         // ------------------------------------------------------------
-        // Arrow keys mapped to keypad (cursor diamond)
+        // Arrow keys mapped to keypad
+        // Apple Lisa and very early Macintosh used KP / , + * as arrow keys.
+        // Arrow legends appear on these keys on Lisa and pre-ADB Mac keyboards.
+        // KP 2 4 6 8 as arrow keys was exclusively an IBM PC thing.
         // ------------------------------------------------------------
-        lisa_keycode_hid[8'h52] = 8'h25; // Up    -> KP 8
-        lisa_keycode_hid[8'h50] = 8'h28; // Left  -> KP 4
-        lisa_keycode_hid[8'h4F] = 8'h2A; // Right -> KP 6
-        lisa_keycode_hid[8'h51] = 8'h2D; // Down  -> KP 2
+        lisa_keycode_hid[8'h52] = 8'h27; // Up    -> KP / (Up in LisaTerminal)
+        lisa_keycode_hid[8'h50] = 8'h22; // Left  -> KP + (Left in LisaTerminal)
+        lisa_keycode_hid[8'h4F] = 8'h23; // Right -> KP * (Right in LisaTerminal)
+        lisa_keycode_hid[8'h51] = 8'h2B; // Down  -> KP , (Down in LisaTerminal)
+
+        // ------------------------------------------------------------
+        // Nav cluster mapping from LisaKeys keyboard adapter
+        // (https://github.com/RebeccaRGB/lisakeys)
+        // ------------------------------------------------------------
+        lisa_keycode_hid[8'h49] = 8'h46; // Ins  -> third Enter key
+        lisa_keycode_hid[8'h4A] = 8'h68; // Home -> ` ~
+        lisa_keycode_hid[8'h4B] = 8'h42; // PgUp -> \ |
+        lisa_keycode_hid[8'h4C] = 8'h45; // Del  -> Backspace
+        lisa_keycode_hid[8'h4D] = 8'h43; // End  -> < >
+        lisa_keycode_hid[8'h4E] = 8'h2B; // PgDn -> KP ,
     end
 
 
