@@ -13,8 +13,7 @@
 // 
 // Dependencies: 
 // 
-// Revision:
-// Revision 1.2 - Fixed SRAM issues for boards with marginal SRAM ICs and started clocking the VIAs off DOTCK instead of E for better timing stability.
+// Revision: 1.3 - Improved USB keyboard keymappings to better match the original Lisa keyboard; changes courtesy of RebeccaRGB.
 // Additional Comments:
 // 
 //////////////////////////////////////////////////////////////////////////////////

@@ -8,4 +8,4 @@ Start Address      0x00000000
 End Address        0x00FFFFFF
 
 Addr1         Addr2         Date                    File(s)
-0x00000000    0x003A607B    Jun 29 00:54:49 2026    /home/alexthecat123/LisaFPGA/LisaFPGA.runs/impl_1/top.bit
+0x00000000    0x003A607B    Jul  6 19:07:33 2026    /home/alexthecat123/LisaFPGA/LisaFPGA.runs/impl_1/top.bit

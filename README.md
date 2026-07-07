@@ -400,6 +400,7 @@ Feel free to email me at [alexelectronicsguy@gmail.com](mailto:alexelectronicsgu
 6/6/2026 - Initial LisaFPGA core v1.0 release and v3 PCB release.
 6/23/2026 - LisaFPGA core v1.1 - Replaced external SCC with an internal SystemVerilog implementation for the sake of cost savings, easier parts sourcing, and reduced PCB complexity.
 6/28/2026 - LisaFPGA core v1.2 - Fixed issues where marginal SRAM chips would sometimes fail at a 75MHz DOTCK and moved the VIAs from the E clock with clock enables to the DOTCK with clock enables to improve timing stability.
+7/6/2026 - LisaFPGA core v1.3 - Improved USB keyboard keymappings to better match the original Lisa keyboard; changes courtesy of RebeccaRGB.
 
 # Appendix - Jumpers, Switches, Buttons, and LEDs
 There are quite a lot of switches, jumpers, buttons, and LEDs on the LisaFPGA board. Here's a table explaining what each one does, along with longer explanations whenever necessary.
