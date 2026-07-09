@@ -13,7 +13,7 @@
 // 
 // Dependencies: 
 // 
-// Revision: 1.3 - Improved USB keyboard keymappings to better match the original Lisa keyboard; changes courtesy of RebeccaRGB.
+// Revision: 1.4 - Added the ability to force the contrast to be maxed out all the time with GPIO[1], at the request of Adrian Black
 // Additional Comments:
 // 
 //////////////////////////////////////////////////////////////////////////////////
@@ -509,6 +509,7 @@ module top(
         ._clr_vid_clk(_clr_vid_clk), // Replaces _HSYNC; better reflects the HSYNC time which is actually shorter than _HSYNC
         .VID(VID_int),
         .CONT(CONT),
+        .cont_override(GPIO[1]), // When high, force the contrast to be maxed out all the time; added at the request of Adrian
         .TONE(TONE),
         .VC(VC),
         .CPU_ROM_SEL(CPU_ROM_SEL),

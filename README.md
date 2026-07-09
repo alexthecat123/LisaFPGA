@@ -197,13 +197,15 @@ Using your LisaFPGA board is really easy! All you'll need to get up and running 
 - A USB-C cable and a computer, power brick, or USB power bank to supply power. You can get about 14-18 hours of battery life off a standard 10,000mAh power bank, depending on usage, what peripherals you have connected, and the quality of your power bank.
 - A USB keyboard and mouse (or a real Lisa keyboard and mouse).
 - An HDMI cable and an HDMI-compatible display of some kind.
-- A microSD card for ESProFile hard disk emulation; any size is fine.
+- A microSD card for ESProFile hard disk emulation; any size is fine. Make sure it's a good-quality name-brand card!
 - (Optional) A real 400K or 800K floppy drive, Twiggy drive, or Floppy Emu if you want floppy disk capabilities. The onboard floppy emulator should hopefully remove the need for this once I get it going in the future.
 
 ### Configuring the ESProFile SD Card
 This is really easy; just format the card as FAT32, extract the ```images.zip``` archive found in this repo, and copy all of the extracted files into the root of the card. This will set your ESProFile up with Tom Stepleton's Selector boot picker that lets you choose which OS to boot into when you start up the Lisa, as well as ready-to-go disk images for a variety of Lisa OSes.
 
 Once your SD card is ready to go, stick it into the ESPROFILE SD slot at the top-right corner of the board.
+
+Some people have had strange issues when using cheap off-brand cards where your OS will try to boot, but then randomly crash in a way that makes it seem as if the Lisa itself has a hardware fault. If you see an error 10707 or 10738 in LOS (or you really get any errors whatsoever when booting the images that I give you in ```images.zip```), then you're probably experiencing this. To fix it, upgrade to a name-brand SD card; I normally use [these cards](http://amazon.com/dp/B08T6QSBPJ) from PNY, but pretty much anything from the big manufacturers should work.
 
 <img width="1280" height="720" alt="IMG_4065" src="https://github.com/user-attachments/assets/ada1b77f-0277-4f4a-ba29-44deb718ee32" />
 
@@ -291,6 +293,9 @@ The two serial ports (Serial A and Serial B) along the top edge of the board wor
 Alternatively, you have the option of routing Serial B through an onboard USB-to-serial adapter and over to the board's USB-C port. This way, you can plug the board into your computer via USB and connect straight to the Lisa in your favorite terminal software (or whatever else you want to use) for the sake of transferring files, logging into a UNIX session, and so on. To switch into this mode, just flip the SERIAL B SOURCE switch into the USB position.
 
 The USB-to-serial interface's hardware handshaking (RTS and CTS) lines are wired up to the corresponding lines within the Lisa, so you'll have full hardware flow control over the USB link!
+
+### I hate the Lisa's contrast control; it makes the screen too dim! Can I just set the contrast to a static value all the time?
+Yes, you can! At the request of Adrian Black, I've added the ability to max out the contrast all the time, regardless of the contrast setting in any OS. To enable this, connect GPIO1 on the GPIO header to 3.3V.
 
 ## Compatibility Notes
 ### What if my software needs a 2/10 in order to run?
@@ -401,6 +406,7 @@ Feel free to email me at [alexelectronicsguy@gmail.com](mailto:alexelectronicsgu
 6/23/2026 - LisaFPGA core v1.1 - Replaced external SCC with an internal SystemVerilog implementation for the sake of cost savings, easier parts sourcing, and reduced PCB complexity.
 6/28/2026 - LisaFPGA core v1.2 - Fixed issues where marginal SRAM chips would sometimes fail at a 75MHz DOTCK and moved the VIAs from the E clock with clock enables to the DOTCK with clock enables to improve timing stability.
 7/6/2026 - LisaFPGA core v1.3 - Improved USB keyboard keymappings to better match the original Lisa keyboard; changes courtesy of RebeccaRGB.
+7/9/2026 - LisaFPGA core v1.4 - Added the ability to max out the contrast all the time, regardless of the contrast setting. Just short GPIO1 to 3V3!
 
 # Appendix - Jumpers, Switches, Buttons, and LEDs
 There are quite a lot of switches, jumpers, buttons, and LEDs on the LisaFPGA board. Here's a table explaining what each one does, along with longer explanations whenever necessary.

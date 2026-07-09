@@ -29,6 +29,7 @@ module HDMI_Interface (
     input logic _clr_vid_clk, // Replaces _HSYNC; active low during horizontal blanking
     input logic VID,
     input logic [5:0] CONT,
+    input logic cont_override, // When high, force the contrast to be maxed out all the time; added at the request of Adrian
     input logic TONE,
     input logic [2:0] VC,
     input logic CPU_ROM_SEL,
@@ -430,7 +431,12 @@ module HDMI_Interface (
     // We need to synchronize CONT to the pixel clock domain before we can use it to adjust the brightness of the output
     (* ASYNC_REG = "TRUE" *) logic [5:0] CONT_int, CONT_sync;
     always_ff @(posedge clk_pixel) begin
-        CONT_int <= CONT;
+        // An interesting quirk here though: we need to either pipe through CONT or a maxed-out contrast depending on cont_override
+        if (cont_override) begin
+            CONT_int <= 6'h00; // If cont_override is high, max out the contrast all the time
+        end else begin
+            CONT_int <= CONT; // Otherwise, use the CONT value from the Lisa
+        end
         CONT_sync <= CONT_int;
     end
 
