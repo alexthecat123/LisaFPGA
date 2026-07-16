@@ -194,7 +194,7 @@ Once the script says that it's done, turn your board off and back on again, and 
 ## Initial Setup
 ### Required Parts
 Using your LisaFPGA board is really easy! All you'll need to get up and running is:
-- A USB-C cable and a computer, power brick, or USB power bank to supply power. You can get about 14-18 hours of battery life off a standard 10,000mAh power bank, depending on usage, what peripherals you have connected, and the quality of your power bank.
+- A USB-C cable and a computer, power brick, or USB power bank to supply power. You can get about 14-18 hours of battery life off a standard 10,000mAh power bank, depending on usage, what peripherals you have connected, and the quality of your power bank. If all of the lights on your board randomly go out and then come back on while you're using it, then your power supply probably isn't beefy enough, and you'll need a better one.
 - A USB keyboard and mouse (or a real Lisa keyboard and mouse).
 - An HDMI cable and an HDMI-compatible display of some kind.
 - A microSD card for ESProFile hard disk emulation; any size is fine. Make sure it's a good-quality name-brand card!
@@ -229,7 +229,7 @@ To power up the board, flip on the POWER switch near the left edge of the board.
 - ESProFile's status LED will light up red once it comes out of reset.
 - The DONE LED will light up green after a few seconds once the FPGA has loaded its bitstream from SPI flash.
 - Your monitor will display a black screen (the Lisa's actual display area) with a grey border around it.
-- ESProFile's status LED will turn green once it detects the SD card, loads the default disk image, and presents itself as ready for the Lisa.
+- ESProFile's status LED will turn off once it detects the SD card, loads the default disk image, and presents itself as ready for the Lisa. Once you actually power the Lisa on, it'll turn green.
 - Depending on your USB configuration, the ACT LEDs may or may not light up.
 
 If the DONE LED never lights up, hit the PROGRAM button right next to it and wait a few seconds, or just power-cycle the whole board. I've seen this happen very occasionally.
@@ -281,7 +281,7 @@ The 26-pin cables are a lot easier; stick one end of the first cable into the UP
 
 Make sure you have the I/O ROM SELECT switch on the LisaFPGA board set to the 40 position if you plan on using Twiggy drives.
 
-If you're using Twiggies, then a computer's USB port will DEFINITELY not provide enough current to power the board, and you'll get brownouts left and right. Power the board from an actual USB-C power brick if you're using Twiggies!
+If you're using Twiggies, then a computer's USB port will DEFINITELY not provide enough current to power the board, and you'll get brownouts left and right. If all of the lights on the just randomly go out and then come back on, then that's a brownout. Power the board from an actual USB-C power brick if you're using Twiggies!
 
 This photo shows how everything should be connected, minus the actual Twiggy drives since I'm not lucky enough to own any!
 
